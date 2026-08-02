@@ -720,6 +720,16 @@
   mark(wants);
   if (wants) WAKE.forEach(function(ev){ window.addEventListener(ev, wake, {passive:true}); });
 
+  // Start buffering once the page's own images are done. With preload="none"
+  // the track only begins downloading at the moment of the tap, and on iOS the
+  // gesture's permission to play can lapse before enough audio arrives — which
+  // feels exactly like tapping and nothing happening. Deferred to `load` so it
+  // never competes with the hero photo for bandwidth.
+  window.addEventListener('load', function(){
+    if (sounding || starting) return;
+    try { bed.preload = 'auto'; bed.load(); } catch (e) {}
+  });
+
   // toggles off what is actually playing, and otherwise turns it on — so the tap
   // always does the thing the visitor is asking for
   snd.addEventListener('click', function(){
