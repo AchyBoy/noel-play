@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#080b0a">
 <!-- Single source of truth for the build. Shown in the footer, and compared
      against a fresh copy of this page so a stale cache announces itself. -->
-<meta name="x-noel-version" content="v1.1">
+<meta name="x-noel-version" content="v1.3">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Noel">
 <meta property="og:description" content="The Apostolic Church of Lafayette presents an evening of sacred music and drama. December 19–20 · Lafayette, LA.">
@@ -256,6 +256,12 @@
   .card.nope{animation:nope .5s ease}
   /* absolute, or it would join the sheet's flex row and shove the card sideways */
   .confetti{position:absolute;inset:0;pointer-events:none;z-index:2}
+  /* temporary diagnostics, behind the password so it isn't public */
+  .diag{margin-top:24px;border-top:1px solid var(--line);padding-top:18px}
+  .diag pre{margin-top:10px;max-height:190px;overflow:auto;white-space:pre-wrap;
+    word-break:break-word;font:11.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;
+    color:#b9b4a6;background:rgba(255,255,255,.03);border:1px solid var(--line);
+    border-radius:9px;padding:11px 12px}
   .msg{font-size:13.5px;line-height:1.5;margin-top:14px;min-height:20px;color:var(--muted)}
   .msg.bad{color:#e08a8a}
   .msg.good{color:var(--gold-bright)}
@@ -555,7 +561,10 @@
   var dots = document.getElementById('dots');
   if (strip){
     var cards = [];
-    var at = 0, held = false, wake = null, settle = null;
+    // `resumeT`, NOT `wake` — that name belongs to the music's gesture handler
+    // further down, and a `var` here silently overwrote the function, leaving
+    // the page with no listener at all.
+    var at = 0, held = false, resumeT = null, settle = null;
 
     // Rebuilt rather than computed once, because photos uploaded from the page
     // get appended to this strip after it has already been set up.
@@ -600,8 +609,8 @@
     ['pointerdown', 'touchstart', 'wheel'].forEach(function(ev){
       strip.addEventListener(ev, function(){
         held = true;
-        clearTimeout(wake);
-        wake = setTimeout(function(){ held = false; }, 7000);
+        clearTimeout(resumeT);
+        resumeT = setTimeout(function(){ held = false; }, 7000);
       }, { passive: true });
     });
 
@@ -712,7 +721,20 @@
   // left a pending play() that blocked the click a moment later — which is why
   // tapping the page did nothing while tapping the ♪ button worked. The button
   // has its own handler, so its click was never blocked.
-  var WAKE = ['click', 'touchend', 'pointerup', 'keydown'];
+  var WAKE = ['click', 'touchend', 'pointerup', 'touchstart', 'keydown'];
+
+  // TEMPORARY diagnostic. iOS gives no console, so the footer reports how many
+  // gestures actually reached this code and why the last play() was refused.
+  // Two unknowns, answered on screen. Remove once the music is settled.
+  var taps = 0, lastErr = '';
+  function audioNote(){
+    var el = document.getElementById('ver');
+    if (!el) return;
+    var bits = [];
+    if (taps) bits.push(taps + (taps === 1 ? ' tap' : ' taps'));
+    if (lastErr) bits.push(lastErr);
+    el.textContent = VERSION + (bits.length ? ' · ' + bits.join(' · ') : '');
+  }
   bed.volume = 0;
 
   function fadeTo(target, done){
@@ -752,12 +774,16 @@
       detach();          // sound is genuinely out, so stop waiting for a gesture
       mark(true);
       fadeTo(VOL);
-    }).catch(function(){
+      lastErr = 'playing';
+      audioNote();
+    }).catch(function(err){
       // Refused, almost always because that gesture didn't count as user
       // activation. Leave `wants` alone so the button still reads on, and keep
       // listening — giving up here is what left the page silent until it was
       // tapped by hand.
       sounding = false;
+      lastErr = (err && (err.name || err.message)) || 'refused';
+      audioNote();
     });
   }
   function stop(){
@@ -765,16 +791,32 @@
     fadeTo(0, function(){ bed.pause(); });
   }
 
-  function detach(){ WAKE.forEach(function(ev){ window.removeEventListener(ev, wake); }); }
+  function detach(){
+    WAKE.forEach(function(ev){
+      window.removeEventListener(ev, wake);
+      document.removeEventListener(ev, wake);
+    });
+  }
+  var lastEvt = null;
   function wake(e){
+    // bound to both document and window, so the same event arrives twice
+    if (e && e === lastEvt) return;
+    lastEvt = e;
     // a tap on the button is its own listener's business; if both ran they'd
     // start and immediately stop each other
-    if (e && e.target && (e.target === snd || snd.contains(e.target))) return;
+    if (e && e.target && snd && (e.target === snd || snd.contains(e.target))) return;
+    taps++;
+    audioNote();
     if (wants) start();
   }
 
   mark(wants);
-  if (wants) WAKE.forEach(function(ev){ window.addEventListener(ev, wake, {passive:true}); });
+  // Bound to BOTH window and document. They should be equivalent for bubbling
+  // events, but "should be" is what has cost us four rounds on this, so both.
+  if (wants) WAKE.forEach(function(ev){
+    window.addEventListener(ev, wake, {passive:true});
+    document.addEventListener(ev, wake, {passive:true});
+  });
 
   // Start buffering once the page's own images are done. With preload="none"
   // the track only begins downloading at the moment of the tap, and on iOS the
@@ -916,10 +958,12 @@
       });
     }
 
-    var LIFE = 2800, start = null;
+    // `t0`, not `start` — `start` is the music's play function at the top level,
+    // and shadowing it in here is the same trap that `wake` fell into
+    var LIFE = 2800, t0 = null;
     (function frame(now){
-      if (start === null) start = now;
-      var t = now - start;
+      if (t0 === null) t0 = now;
+      var t = now - t0;
       ctx.clearRect(0, 0, w, h);
       for (var i = 0; i < bits.length; i++){
         var b = bits[i];
@@ -967,15 +1011,67 @@
       '<input type="file" id="pFile" accept="image/*" multiple hidden>' +
       '<button class="sendbtn" type="button" id="pPick">Choose photos</button>' +
       '<p class="msg" id="pMsg"></p>' +
-      '<div class="plist" id="pList"></div>';
+      '<div class="plist" id="pList"></div>' +
+      '<div class="diag">' +
+        '<button class="sendbtn" type="button" id="pCopy">Copy diagnostics</button>' +
+        '<pre id="pDiag"></pre>' +
+      '</div>';
     document.getElementById('pPick').addEventListener('click', function(){
       document.getElementById('pFile').click();
+    });
+    var diagEl = document.getElementById('pDiag');
+    var copyBtn = document.getElementById('pCopy');
+    diagEl.textContent = collectDebug();
+    copyBtn.addEventListener('click', function(){
+      var text = collectDebug();
+      diagEl.textContent = text;
+      function done(ok){
+        copyBtn.textContent = ok ? 'Copied — paste it to Claude' : 'Select the text below and copy';
+        setTimeout(function(){ copyBtn.textContent = 'Copy diagnostics'; }, 3500);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(function(){ done(true); }, function(){ done(false); });
+      } else {
+        done(false);
+      }
     });
     document.getElementById('pFile').addEventListener('change', function(e){
       sendFiles(e.target.files);
       e.target.value = '';   // so picking the same file twice still fires
     });
     drawList(data.photos || []);
+  }
+
+  // TEMPORARY. Everything I'd otherwise ask you to read off a phone that has no
+  // console. Remove once the music is settled.
+  function collectDebug(){
+    var L = [];
+    function add(k, v){ L.push(k + ': ' + v); }
+    add('build', VERSION);
+    add('url', location.href);
+    add('ua', navigator.userAgent);
+    add('gestures seen', taps);
+    add('last audio result', lastErr || '(none yet)');
+    add('wants music', wants);
+    add('sounding', sounding);
+    try { add('muted flag', sessionStorage.getItem('noel-muted') || '(unset)'); }
+    catch (e) { add('muted flag', 'sessionStorage blocked'); }
+    if (bed){
+      add('audio paused', bed.paused);
+      add('audio currentTime', bed.currentTime);
+      add('audio readyState', bed.readyState + ' (4 = ready)');
+      add('audio networkState', bed.networkState);
+      add('audio volume', bed.volume + (bed.volume === 1 ? '  <- iOS ignores volume' : ''));
+      add('audio muted', bed.muted);
+      add('audio currentSrc', bed.currentSrc || '(none)');
+      add('audio duration', isNaN(bed.duration) ? 'unknown' : bed.duration);
+      add('can play m4a', bed.canPlayType('audio/mp4') || 'no');
+      add('can play mp3', bed.canPlayType('audio/mpeg') || 'no');
+    }
+    add('reduced motion', window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    add('WebAudio available', !!(window.AudioContext || window.webkitAudioContext));
+    add('screen', window.innerWidth + 'x' + window.innerHeight + ' @' + (window.devicePixelRatio || 1));
+    return L.join('\n');
   }
 
   function drawList(photos){
