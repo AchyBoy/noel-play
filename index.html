@@ -454,30 +454,46 @@
     snd.setAttribute('aria-label', on ? 'Pause music' : 'Play music');
   }
 
-  // `wants` is what the visitor has asked for. play() resolves a beat later, so
-  // everything downstream checks this rather than the element's own state.
+  // Two separate things: `wants` is the visitor's intent, `sounding` is whether
+  // audio is coming out right now. They differ for the stretch between page load
+  // and the first interaction — the button reads as on, but no browser has let it
+  // make a sound yet. Treating those as one value meant the first tap on the
+  // button muted something that had never played.
   var wants = sessionStorage.getItem('noel-muted') !== '1';
+  var sounding = false;
 
   function start(){
     bed.play().then(function(){
       if (!wants){ bed.pause(); return; }  // muted while play() was in flight
-      fadeTo(VOL);
-    }).catch(function(){ wants = false; mark(false); });
+      sounding = true; mark(true); fadeTo(VOL);
+    }).catch(function(){ wants = false; sounding = false; mark(false); });
   }
-  function stop(){ fadeTo(0, function(){ bed.pause(); }); }
+  function stop(){
+    sounding = false;
+    fadeTo(0, function(){ bed.pause(); });
+  }
 
-  function wake(){
-    WAKE.forEach(function(ev){ window.removeEventListener(ev, wake); });
+  function detach(){ WAKE.forEach(function(ev){ window.removeEventListener(ev, wake); }); }
+  function wake(e){
+    // a tap on the button is its own listener's business; if both ran they'd
+    // start and immediately stop each other
+    if (e && e.target && (e.target === snd || snd.contains(e.target))) return;
+    detach();
     if (wants) start();
   }
+
   mark(wants);
   if (wants) WAKE.forEach(function(ev){ window.addEventListener(ev, wake, {passive:true}); });
 
+  // toggles off what is actually playing, and otherwise turns it on — so the tap
+  // always does the thing the visitor is asking for
   snd.addEventListener('click', function(){
-    wants = !wants;
-    mark(wants);
-    if (wants){ sessionStorage.removeItem('noel-muted'); start(); }
-    else { sessionStorage.setItem('noel-muted', '1'); stop(); }
+    detach();
+    if (sounding){
+      wants = false; sessionStorage.setItem('noel-muted', '1'); mark(false); stop();
+    } else {
+      wants = true; sessionStorage.removeItem('noel-muted'); mark(true); start();
+    }
   });
 
   // duck out when the tab goes to the background
