@@ -206,12 +206,15 @@
   /* the office number, when there is one: readable on a desktop, tappable on a
      phone. .callbtn drops the underline the plain .orline links carry. */
   .callbtn{display:inline-flex;align-items:center;gap:9px;margin-top:6px;
-    border:1px solid var(--gold);border-bottom:1px solid var(--gold);color:var(--gold-bright);
-    font-family:var(--serif);font-size:23px;letter-spacing:.01em;
+    color:var(--gold-bright);font-family:var(--serif);font-size:23px;letter-spacing:.01em;
     padding:11px 26px;border-radius:999px;transition:background .3s ease}
   .callbtn:active{background:rgba(231,183,92,.12)}
   .callbtn:focus-visible{outline:2px solid var(--gold-bright);outline-offset:3px}
-  .orline .callbtn{padding-bottom:11px}
+  /* `.orline a` underlines the plain email link, and being class-plus-element it
+     outranks `.callbtn` alone — it was repainting the bottom of the oval in the
+     dim line colour, leaving a pill that looked open at the base. Scoped to two
+     classes so the button wins outright. */
+  .orline .callbtn{border:1px solid var(--gold);padding-bottom:11px}
 
   /* Hidden photo panel, reached by long-pressing the footer wordmark.
      The wordmark must not be selectable or iOS pops its own copy/lookup menu
@@ -757,7 +760,8 @@
       '<p class="note">Photos you add here go onto the page straight away, into the ' +
       'strip under On stage.</p>' +
       '<label class="field"><span>Password</span>' +
-      '<input type="password" id="pPass" autocomplete="current-password"></label>' +
+      '<input type="password" id="pPass" autocomplete="current-password" ' +
+      'autocapitalize="none" autocorrect="off" spellcheck="false"></label>' +
       '<button class="sendbtn" type="button" id="pUnlock">Unlock</button>' +
       '<p class="msg" id="pMsg"></p>';
     document.getElementById('pUnlock').addEventListener('click', tryUnlock);
