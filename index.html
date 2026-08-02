@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#080b0a">
 <!-- Single source of truth for the build. Shown in the footer, and compared
      against a fresh copy of this page so a stale cache announces itself. -->
-<meta name="x-noel-version" content="v1.4">
+<meta name="x-noel-version" content="v1.5">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Noel">
 <meta property="og:description" content="The Apostolic Church of Lafayette presents an evening of sacred music and drama. December 19–20 · Lafayette, LA.">
@@ -256,12 +256,6 @@
   .card.nope{animation:nope .5s ease}
   /* absolute, or it would join the sheet's flex row and shove the card sideways */
   .confetti{position:absolute;inset:0;pointer-events:none;z-index:2}
-  /* temporary diagnostics, behind the password so it isn't public */
-  .diag{margin-top:24px;border-top:1px solid var(--line);padding-top:18px}
-  .diag pre{margin-top:10px;max-height:190px;overflow:auto;white-space:pre-wrap;
-    word-break:break-word;font:11.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;
-    color:#b9b4a6;background:rgba(255,255,255,.03);border:1px solid var(--line);
-    border-radius:9px;padding:11px 12px}
   .msg{font-size:13.5px;line-height:1.5;margin-top:14px;min-height:20px;color:var(--muted)}
   .msg.bad{color:#e08a8a}
   .msg.good{color:var(--gold-bright)}
@@ -407,16 +401,15 @@
   </div>
 </section>
 
-<section id="gallery">
+<!-- hidden until photos actually arrive, so a slow or failed API never leaves an
+     empty "On stage" heading sitting on the page -->
+<section id="gallery" style="display:none">
   <div class="wrap reveal">
     <p class="kicker">On stage</p>
     <div class="gallery">
-      <!-- object-position is per photo: the cards are a uniform 4:3, so each
-           image needs its own idea of what must survive the crop -->
-      <div class="shot"><img src="g2.jpg" style="object-position:50% 55%" alt="Two women holding one another beside the cross" loading="lazy" onerror="this.remove()"></div>
-      <div class="shot"><img src="g1.jpg" alt="Two men on stage beneath the Emmanuel banner" loading="lazy" onerror="this.remove()"></div>
-      <div class="shot"><img src="g3.jpg" alt="Mary kneeling as two trumpeters play" loading="lazy" onerror="this.remove()"></div>
-      <div class="shot"><img src="g4.jpg" style="object-position:45% 50%" alt="Two women on stage, holding one another" loading="lazy" onerror="this.remove()"></div>
+      <!-- Deliberately empty. Every photo, including the original four, is now
+           loaded from the API so all of them can be removed from the panel.
+           The section hides itself if none come back. -->
     </div>
     <div class="dots" id="dots" aria-hidden="true"></div>
   </div>
@@ -624,7 +617,12 @@
     window.loadNoelPhotos = function(){
       return fetch(API + '/photos').then(function(r){ return r.json(); }).then(function(j){
         [].forEach.call(strip.querySelectorAll('.shot[data-photo-id]'), function(n){ n.remove(); });
-        ((j && j.photos) || []).forEach(function(p){
+        var list = (j && j.photos) || [];
+        // With no photos at all there is nothing to show, and an empty bordered
+        // strip under a heading reads as broken. Hide the whole section instead.
+        var section = document.getElementById('gallery');
+        if (section) section.style.display = list.length ? '' : 'none';
+        list.forEach(function(p){
           var cell = document.createElement('div');
           cell.className = 'shot';
           cell.setAttribute('data-photo-id', p.id);
@@ -723,10 +721,6 @@
   // has its own handler, so its click was never blocked.
   var WAKE = ['click', 'touchend', 'pointerup', 'touchstart', 'keydown'];
 
-  // Kept for the diagnostics panel behind the password. These no longer touch
-  // the footer — once the music started working, that would have published
-  // "v1.3 · 1 tap · playing" to every visitor.
-  var taps = 0, lastErr = '';
   bed.volume = 0;
 
   function fadeTo(target, done){
@@ -766,14 +760,12 @@
       detach();          // sound is genuinely out, so stop waiting for a gesture
       mark(true);
       fadeTo(VOL);
-      lastErr = 'playing';
     }).catch(function(err){
       // Refused, almost always because that gesture didn't count as user
       // activation. Leave `wants` alone so the button still reads on, and keep
       // listening — giving up here is what left the page silent until it was
       // tapped by hand.
       sounding = false;
-      lastErr = (err && (err.name || err.message)) || 'refused';
     });
   }
   function stop(){
@@ -795,7 +787,6 @@
     // a tap on the button is its own listener's business; if both ran they'd
     // start and immediately stop each other
     if (e && e.target && snd && (e.target === snd || snd.contains(e.target))) return;
-    taps++;
     if (wants) start();
   }
 
@@ -1000,68 +991,13 @@
       '<input type="file" id="pFile" accept="image/*" multiple hidden>' +
       '<button class="sendbtn" type="button" id="pPick">Choose photos</button>' +
       '<p class="msg" id="pMsg"></p>' +
-      '<div class="plist" id="pList"></div>' +
-      '<div class="diag">' +
-        '<button class="sendbtn" type="button" id="pCopy">Copy diagnostics</button>' +
-        '<pre id="pDiag"></pre>' +
-      '</div>';
+      '<div class="plist" id="pList"></div>';
     document.getElementById('pPick').addEventListener('click', function(){
       document.getElementById('pFile').click();
-    });
-    var diagEl = document.getElementById('pDiag');
-    var copyBtn = document.getElementById('pCopy');
-    diagEl.textContent = collectDebug();
-    copyBtn.addEventListener('click', function(){
-      var text = collectDebug();
-      diagEl.textContent = text;
-      function done(ok){
-        copyBtn.textContent = ok ? 'Copied — paste it to Claude' : 'Select the text below and copy';
-        setTimeout(function(){ copyBtn.textContent = 'Copy diagnostics'; }, 3500);
-      }
-      if (navigator.clipboard && navigator.clipboard.writeText){
-        navigator.clipboard.writeText(text).then(function(){ done(true); }, function(){ done(false); });
-      } else {
-        done(false);
-      }
-    });
-    document.getElementById('pFile').addEventListener('change', function(e){
-      sendFiles(e.target.files);
-      e.target.value = '';   // so picking the same file twice still fires
     });
     drawList(data.photos || []);
   }
 
-  // TEMPORARY. Everything I'd otherwise ask you to read off a phone that has no
-  // console. Remove once the music is settled.
-  function collectDebug(){
-    var L = [];
-    function add(k, v){ L.push(k + ': ' + v); }
-    add('build', VERSION);
-    add('url', location.href);
-    add('ua', navigator.userAgent);
-    add('gestures seen', taps);
-    add('last audio result', lastErr || '(none yet)');
-    add('wants music', wants);
-    add('sounding', sounding);
-    try { add('muted flag', sessionStorage.getItem('noel-muted') || '(unset)'); }
-    catch (e) { add('muted flag', 'sessionStorage blocked'); }
-    if (bed){
-      add('audio paused', bed.paused);
-      add('audio currentTime', bed.currentTime);
-      add('audio readyState', bed.readyState + ' (4 = ready)');
-      add('audio networkState', bed.networkState);
-      add('audio volume', bed.volume + (bed.volume === 1 ? '  <- iOS ignores volume' : ''));
-      add('audio muted', bed.muted);
-      add('audio currentSrc', bed.currentSrc || '(none)');
-      add('audio duration', isNaN(bed.duration) ? 'unknown' : bed.duration);
-      add('can play m4a', bed.canPlayType('audio/mp4') || 'no');
-      add('can play mp3', bed.canPlayType('audio/mpeg') || 'no');
-    }
-    add('reduced motion', window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-    add('WebAudio available', !!(window.AudioContext || window.webkitAudioContext));
-    add('screen', window.innerWidth + 'x' + window.innerHeight + ' @' + (window.devicePixelRatio || 1));
-    return L.join('\n');
-  }
 
   function drawList(photos){
     var list = document.getElementById('pList');
