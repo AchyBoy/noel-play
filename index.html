@@ -175,7 +175,8 @@
 
   /* contact */
   .sub-lede{color:var(--muted);font-size:15.5px;max-width:34ch;margin:0 auto 30px}
-  .form{max-width:430px;margin:0 auto;text-align:left;display:flex;flex-direction:column;gap:14px}
+  /* .field and .sendbtn are the password panel's now — the contact form that
+     first used them is gone, replaced by the office number. */
   .field{display:flex;flex-direction:column;gap:7px}
   .field span{font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
   .field input,.field textarea{width:100%;background:rgba(255,255,255,.035);
@@ -194,8 +195,6 @@
     -webkit-box-shadow:0 0 0 1000px #121614 inset;
     caret-color:var(--cream);
     transition:background-color 9999s ease-out 0s}
-  /* honeypot: off-screen and untabbable, so only a bot ever fills it */
-  .hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none}
   .sendbtn{margin-top:6px;width:100%;cursor:pointer;
     border:1px solid var(--gold);background:transparent;color:var(--gold-bright);
     font:500 14px/1 var(--sans);letter-spacing:.03em;padding:16px 28px;border-radius:999px;
@@ -400,23 +399,7 @@
 <section id="contact">
   <div class="wrap reveal">
     <p class="kicker">Contact us</p>
-    <p class="sub-lede">Questions about seating, group reservations, or anything else? Send us a note.</p>
-    <form class="form" id="contactForm" novalidate>
-      <label class="field">
-        <span>Your name</span>
-        <input type="text" id="cName" name="name" autocomplete="name" placeholder="First and last">
-      </label>
-      <label class="field">
-        <span>Email or phone</span>
-        <input type="text" id="cFrom" name="from" autocomplete="email" placeholder="So we can reply">
-      </label>
-      <label class="field">
-        <span>Message</span>
-        <textarea id="cMsg" name="message" placeholder="How can we help?"></textarea>
-      </label>
-      <input class="hp" type="text" id="cHp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
-      <button class="sendbtn" type="submit" id="cSend">Send message</button>
-    </form>
+    <p class="sub-lede">Questions about seating, group seats, or anything else? The church office is glad to help.</p>
     <div class="orline" id="reach"></div>
   </div>
 </section>
@@ -929,18 +912,10 @@
     if (document.hidden){ bed.pause(); } else { bed.play().catch(function(){}); }
   });
 
-  // Contact form. It posts the note to the JobHub backend, which mails it on via
-  // Mailgun, so nothing hands off to the visitor's mail app. Clearing ENDPOINT
-  // falls back to a prefilled mailto, which is the behaviour if the API is down.
-  var ENDPOINT = API + '/contact';
-
-  // The church office number. Fill BOTH in and the call button appears in place
-  // of the email line; leave them empty and the page falls back to email, so
-  // there is always some way to reach someone.
-  //   PHONE      — what actually gets dialled, digits and a leading +
-  //   PHONE_SHOWN— what people read
-  // Deliberately empty rather than a placeholder: a made-up number on a public
-  // page is a real telephone ringing in somebody else's house.
+  // The church office number.
+  //   PHONE       — what actually gets dialled, digits with a leading +
+  //   PHONE_SHOWN — what people read
+  // It's an office line, so calling only: no SMS link.
   var PHONE = '+13379817777';
   var PHONE_SHOWN = '(337) 981-7777';
 
@@ -948,58 +923,13 @@
     var box = document.getElementById('reach');
     if (!box) return;
     if (PHONE && PHONE_SHOWN){
-      box.innerHTML = 'or call the church office<br>' +
-        '<a class="callbtn" href="tel:' + esc(PHONE) + '">' + esc(PHONE_SHOWN) + '</a>';
+      box.innerHTML = '<a class="callbtn" href="tel:' + esc(PHONE) + '">' + esc(PHONE_SHOWN) + '</a>';
     } else {
-      box.innerHTML = 'or email us directly<br>' +
-        '<a href="mailto:' + esc(TO) + '">' + esc(TO) + '</a>';
+      // only reachable if the number is ever cleared — the page should never be
+      // left with no way to reach anybody
+      box.innerHTML = 'Email us at <br><a href="mailto:' + esc(TO) + '">' + esc(TO) + '</a>';
     }
   })();
-  var form = document.getElementById('contactForm'), sendBtn = document.getElementById('cSend');
-  function said(msg){ sendBtn.textContent = msg; }
-  form.addEventListener('submit', function(e){
-    e.preventDefault();
-    var name = document.getElementById('cName').value.trim();
-    var from = document.getElementById('cFrom').value.trim();
-    var msg  = document.getElementById('cMsg').value.trim();
-    if (!msg){ said('Add a message first'); setTimeout(function(){ said('Send message'); },2200); return; }
-
-    if (ENDPOINT){
-      said('Sending…'); sendBtn.disabled = true;
-      fetch(ENDPOINT, {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          name: name, from: from, message: msg,
-          website: document.getElementById('cHp').value
-        })
-      }).then(function(r){
-        // the server explains itself (rate limits, empty message), so show what
-        // it said rather than a generic failure
-        return r.json().catch(function(){ return {}; }).then(function(j){
-          if (!r.ok) throw new Error(j.error || 'Could not send');
-          form.reset();
-          sendBtn.disabled = false;
-          said('Thank you, we’ll be in touch');
-          setTimeout(function(){ said('Send message'); }, 4000);
-        });
-      }).catch(function(e){
-        sendBtn.disabled = false;
-        said(e.message || 'Could not send');
-        setTimeout(function(){ said('Send message'); }, 4000);
-      });
-      return;
-    }
-
-    var subject = 'Noel' + (name ? ' — ' + name : '');
-    var body = (name ? 'Name: ' + name + '\n' : '')
-             + (from ? 'Reply to: ' + from + '\n' : '')
-             + '\n' + msg;
-    window.location.href = 'mailto:' + TO
-      + '?subject=' + encodeURIComponent(subject)
-      + '&body=' + encodeURIComponent(body);
-    said('Opening your mail app…');
-    setTimeout(function(){ said('Send message'); }, 3200);
-  });
 </script>
 
 </body>
