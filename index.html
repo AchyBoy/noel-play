@@ -58,12 +58,8 @@
     display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;
     -webkit-tap-highlight-color:transparent;transition:background .3s ease,color .3s ease,border-color .3s ease}
   .snd:active{background:rgba(231,183,92,.12)}
-  .snd.off{animation:invite 3.6s ease-in-out infinite}
-  .snd.on{color:#0b0f0d;background:var(--gold-bright);border-color:var(--gold-bright);animation:none}
-  @keyframes invite{
-    0%,100%{box-shadow:0 0 0 0 rgba(231,183,92,0)}
-    50%{box-shadow:0 0 0 5px rgba(231,183,92,.10)}
-  }
+  .snd:focus-visible{outline:2px solid var(--gold-bright);outline-offset:3px}
+  .snd.on{color:#0b0f0d;background:var(--gold-bright);border-color:var(--gold-bright)}
 
   /* hero */
   .hero{position:relative;min-height:94vh;display:flex;flex-direction:column;
@@ -376,10 +372,14 @@
     }, 7000);
   }
 
-  // soft music bed — browsers block autoplay, so this waits for a tap
+  // Soft music bed, on by default. No browser will make sound before the visitor
+  // has interacted with the page, so the button reads as on from the start and the
+  // first touch, scroll, or keypress is what actually begins playback.
   var bed = document.getElementById('bed'), snd = document.getElementById('snd');
-  var VOL = 0.22, fade = null, playing = false;
+  var VOL = 0.22, fade = null;
+  var WAKE = ['pointerdown', 'touchstart', 'keydown', 'scroll', 'wheel'];
   bed.volume = 0;
+
   function fadeTo(target, done){
     clearInterval(fade);
     fade = setInterval(function(){
@@ -391,23 +391,41 @@
       }
     }, 40);
   }
+  function mark(on){
+    snd.className = on ? 'snd on' : 'snd off';
+    snd.setAttribute('aria-pressed', on ? 'true' : 'false');
+    snd.setAttribute('aria-label', on ? 'Pause music' : 'Play music');
+  }
+
+  // `wants` is what the visitor has asked for. play() resolves a beat later, so
+  // everything downstream checks this rather than the element's own state.
+  var wants = sessionStorage.getItem('noel-muted') !== '1';
+
+  function start(){
+    bed.play().then(function(){
+      if (!wants){ bed.pause(); return; }  // muted while play() was in flight
+      fadeTo(VOL);
+    }).catch(function(){ wants = false; mark(false); });
+  }
+  function stop(){ fadeTo(0, function(){ bed.pause(); }); }
+
+  function wake(){
+    WAKE.forEach(function(ev){ window.removeEventListener(ev, wake); });
+    if (wants) start();
+  }
+  mark(wants);
+  if (wants) WAKE.forEach(function(ev){ window.addEventListener(ev, wake, {passive:true}); });
+
   snd.addEventListener('click', function(){
-    if (playing){
-      fadeTo(0, function(){ bed.pause(); });
-      playing = false;
-      snd.className = 'snd off'; snd.setAttribute('aria-pressed','false');
-      snd.setAttribute('aria-label','Play music');
-    } else {
-      bed.play().then(function(){
-        playing = true; fadeTo(VOL);
-        snd.className = 'snd on'; snd.setAttribute('aria-pressed','true');
-        snd.setAttribute('aria-label','Pause music');
-      }).catch(function(){ /* no audio file yet, or blocked */ });
-    }
+    wants = !wants;
+    mark(wants);
+    if (wants){ sessionStorage.removeItem('noel-muted'); start(); }
+    else { sessionStorage.setItem('noel-muted', '1'); stop(); }
   });
+
   // duck out when the tab goes to the background
   document.addEventListener('visibilitychange', function(){
-    if (!playing) return;
+    if (!wants) return;
     if (document.hidden){ bed.pause(); } else { bed.play().catch(function(){}); }
   });
 
