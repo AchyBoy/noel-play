@@ -64,7 +64,9 @@
   /* hero */
   .hero{position:relative;min-height:94vh;display:flex;flex-direction:column;
     align-items:center;justify-content:flex-end;text-align:center;overflow:hidden}
-  .hero .bg{position:absolute;inset:0;background:#0d1210 url('hero.jpg') center 42%/cover no-repeat;
+  /* 34% across keeps his face in frame once a tall phone screen crops the sides
+     off this near-square photo; 34% down keeps it clear of the title */
+  .hero .bg{position:absolute;inset:0;background:#0d1210 url('hero.jpg') 34% 34%/cover no-repeat;
     filter:brightness(1.12) saturate(1.03);
     transform:scale(1.05);animation:slowzoom 18s ease-out forwards}
   @keyframes slowzoom{to{transform:scale(1)}}
@@ -140,12 +142,14 @@
   .credits .role{color:var(--muted);text-align:left}
   .credits .who{color:var(--cream);text-align:right}
 
-  /* the frame is on the wrapper, so a photo that isn't posted yet reads as an
-     empty slot instead of a broken-image icon */
-  .gallery{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  .shot{aspect-ratio:3/4;border-radius:12px;border:1px solid var(--line);overflow:hidden;
+  /* Masonry via CSS columns rather than a grid: these are a mix of portrait and
+     landscape stage shots, and any fixed cell ratio would crop the heart out of
+     half of them. This shows each one whole, and takes however many get added. */
+  .gallery{columns:2;column-gap:12px}
+  .shot{break-inside:avoid;margin:0 0 12px;border-radius:12px;overflow:hidden;
+    border:1px solid var(--line);
     background:linear-gradient(160deg,rgba(231,183,92,.05),rgba(231,183,92,.01))}
-  .shot img{width:100%;height:100%;object-fit:cover;display:block}
+  .shot img{width:100%;height:auto;display:block}
 
   .addr{font-family:var(--serif);font-size:26px;color:var(--cream);margin-bottom:6px}
   .city{color:var(--muted);font-size:15px}
@@ -299,8 +303,11 @@
   <div class="wrap reveal">
     <p class="kicker">On stage</p>
     <div class="gallery">
-      <div class="shot"><img src="g1.jpg" alt="Scene from Noel" loading="lazy" onerror="this.remove()"></div>
-      <div class="shot"><img src="g2.jpg" alt="Scene from Noel" loading="lazy" onerror="this.remove()"></div>
+      <!-- strongest frame leads; the tall one also balances the two columns -->
+      <div class="shot"><img src="g2.jpg" width="933" height="1400" alt="Two women holding one another beside the cross" loading="lazy" onerror="this.remove()"></div>
+      <div class="shot"><img src="g1.jpg" width="1400" height="1050" alt="Two men on stage beneath the Emmanuel banner" loading="lazy" onerror="this.remove()"></div>
+      <div class="shot"><img src="g3.jpg" width="1400" height="1050" alt="Mary kneeling as two trumpeters play" loading="lazy" onerror="this.remove()"></div>
+      <div class="shot"><img src="g4.jpg" width="1400" height="933" alt="Two women on stage, holding one another" loading="lazy" onerror="this.remove()"></div>
     </div>
   </div>
 </section>
