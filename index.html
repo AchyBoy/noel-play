@@ -204,6 +204,15 @@
   .orline{margin-top:26px;font-size:14px;line-height:2.2;color:var(--muted)}
   .orline a{color:var(--gold-bright);border-bottom:1px solid var(--line);
     padding-bottom:3px;overflow-wrap:anywhere}
+  /* the office number, when there is one: readable on a desktop, tappable on a
+     phone. .callbtn drops the underline the plain .orline links carry. */
+  .callbtn{display:inline-flex;align-items:center;gap:9px;margin-top:6px;
+    border:1px solid var(--gold);border-bottom:1px solid var(--gold);color:var(--gold-bright);
+    font-family:var(--serif);font-size:23px;letter-spacing:.01em;
+    padding:11px 26px;border-radius:999px;transition:background .3s ease}
+  .callbtn:active{background:rgba(231,183,92,.12)}
+  .callbtn:focus-visible{outline:2px solid var(--gold-bright);outline-offset:3px}
+  .orline .callbtn{padding-bottom:11px}
 
   /* Hidden photo panel, reached by long-pressing the footer wordmark.
      The wordmark must not be selectable or iOS pops its own copy/lookup menu
@@ -408,7 +417,7 @@
       <input class="hp" type="text" id="cHp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
       <button class="sendbtn" type="submit" id="cSend">Send message</button>
     </form>
-    <p class="orline">or email us directly<br><a href="mailto:andrew@fochelc.com">andrew@fochelc.com</a></p>
+    <div class="orline" id="reach"></div>
   </div>
 </section>
 
@@ -924,6 +933,28 @@
   // Mailgun, so nothing hands off to the visitor's mail app. Clearing ENDPOINT
   // falls back to a prefilled mailto, which is the behaviour if the API is down.
   var ENDPOINT = API + '/contact';
+
+  // The church office number. Fill BOTH in and the call button appears in place
+  // of the email line; leave them empty and the page falls back to email, so
+  // there is always some way to reach someone.
+  //   PHONE      — what actually gets dialled, digits and a leading +
+  //   PHONE_SHOWN— what people read
+  // Deliberately empty rather than a placeholder: a made-up number on a public
+  // page is a real telephone ringing in somebody else's house.
+  var PHONE = '';
+  var PHONE_SHOWN = '';
+
+  (function reachOut(){
+    var box = document.getElementById('reach');
+    if (!box) return;
+    if (PHONE && PHONE_SHOWN){
+      box.innerHTML = 'or call the church office<br>' +
+        '<a class="callbtn" href="tel:' + esc(PHONE) + '">' + esc(PHONE_SHOWN) + '</a>';
+    } else {
+      box.innerHTML = 'or email us directly<br>' +
+        '<a href="mailto:' + esc(TO) + '">' + esc(TO) + '</a>';
+    }
+  })();
   var form = document.getElementById('contactForm'), sendBtn = document.getElementById('cSend');
   function said(msg){ sendBtn.textContent = msg; }
   form.addEventListener('submit', function(e){
