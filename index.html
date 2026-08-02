@@ -6,6 +6,9 @@
 <title>Noel — The Apostolic Church of Lafayette</title>
 <meta name="description" content="The Apostolic Church of Lafayette presents Noel. December 19–20 · Lafayette, LA.">
 <meta name="theme-color" content="#080b0a">
+<!-- Single source of truth for the build. Shown in the footer, and compared
+     against a fresh copy of this page so a stale cache announces itself. -->
+<meta name="x-noel-version" content="v1.0">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Noel">
 <meta property="og:description" content="The Apostolic Church of Lafayette presents an evening of sacred music and drama. December 19–20 · Lafayette, LA.">
@@ -261,6 +264,20 @@
   footer .ft{font-family:var(--serif);font-size:24px;color:var(--gold-bright);margin-bottom:8px;
     display:inline-block;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
   footer .sub{color:var(--muted);font-size:14px;letter-spacing:.02em}
+  footer .ver{margin-top:20px;font-size:10.5px;letter-spacing:.2em;
+    color:rgba(148,151,143,.42);font-variant-numeric:tabular-nums}
+
+  /* GitHub Pages serves this page with a ten minute cache, and phones hold it
+     longer than that, so "it's fixed" and "I still see the bug" can both be
+     true. This says so out loud instead. */
+  .fresh{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:70;
+    display:none;align-items:center;gap:9px;max-width:calc(100vw - 40px);
+    background:rgba(13,18,17,.94);border:1px solid var(--gold);border-radius:999px;
+    padding:12px 22px;color:var(--gold-bright);font:500 13.5px var(--sans);
+    cursor:pointer;-webkit-tap-highlight-color:transparent;
+    backdrop-filter:saturate(140%) blur(8px);box-shadow:0 8px 28px rgba(0,0,0,.55)}
+  .fresh.show{display:flex}
+  .fresh:active{background:rgba(231,183,92,.14)}
 
   /* quiet reveal-on-scroll */
   .reveal{opacity:0;transform:translateY(20px);
@@ -420,8 +437,11 @@
   <div class="reveal">
     <div class="ft" id="ft">Noel</div>
     <div class="sub">The Apostolic Church of Lafayette &middot; December 19&ndash;20</div>
+    <div class="ver" id="ver"></div>
   </div>
 </footer>
+
+<button class="fresh" id="fresh" type="button">A newer version is ready &middot; tap to load it</button>
 
 <div class="sheet" id="panel" hidden>
   <div class="card">
@@ -446,6 +466,41 @@
     entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
   }, {rootMargin:'0px 0px -12% 0px', threshold:0.15});
   document.querySelectorAll('.reveal').forEach(function(el){ io.observe(el); });
+
+  // ---- build version + stale-cache check ------------------------------------
+  // The version lives in the <meta> tag, so there is exactly one place to edit
+  // it. Shown in the footer so "which build am I looking at" is answerable
+  // without asking anyone.
+  var vMeta = document.querySelector('meta[name="x-noel-version"]');
+  var VERSION = (vMeta && vMeta.getAttribute('content')) || '';
+  var verEl = document.getElementById('ver');
+  if (verEl) verEl.textContent = VERSION;
+
+  // Then fetch a guaranteed-fresh copy of this same page and compare. Pages
+  // sends max-age=600 and phones hold HTML longer still, so without this a
+  // visitor can sit on a days-old build with no way to tell.
+  function checkFresh(){
+    var fresh = document.getElementById('fresh');
+    if (!fresh || !VERSION) return Promise.resolve(false);
+    return fetch(location.pathname + '?_=' + Date.now(), { cache: 'no-store' })
+      .then(function(r){ return r.text(); })
+      .then(function(html){
+        // the meta tag sits in <head>, so it always matches before this script's
+        // own copy of the pattern further down the document
+        var m = html.match(/name="x-noel-version" content="([^"]+)"/);
+        if (!m || m[1] === VERSION) return false;
+        fresh.textContent = 'Version ' + m[1] + ' is ready · tap to load it';
+        fresh.classList.add('show');
+        return true;
+      })
+      .catch(function(){ return false; });
+  }
+  document.getElementById('fresh').addEventListener('click', function(){
+    // the query string is what actually defeats a stubborn cache;
+    // location.reload() alone will happily serve the same stale copy
+    location.replace(location.pathname + '?v=' + Date.now());
+  });
+  setTimeout(checkFresh, 3000);
 
   // Declared up here because the visitor ping below runs before the contact
   // form's code; `var` would otherwise hoist it as undefined.
