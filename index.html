@@ -9,12 +9,12 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="Noel">
 <meta property="og:description" content="The Apostolic Church of Lafayette presents an evening of sacred music and drama. December 19–20 · Lafayette, LA.">
-<meta property="og:image" content="https://achyboy.github.io/noel-play/hero.jpg">
+<meta property="og:image" content="https://achyboy.github.io/noel-play/hero1.jpg">
 <meta property="og:url" content="https://achyboy.github.io/noel-play/">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Noel">
 <meta name="twitter:description" content="The Apostolic Church of Lafayette presents an evening of sacred music and drama. December 19–20 · Lafayette, LA.">
-<meta name="twitter:image" content="https://achyboy.github.io/noel-play/hero.jpg">
+<meta name="twitter:image" content="https://achyboy.github.io/noel-play/hero1.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,400;1,500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
@@ -64,12 +64,15 @@
   /* hero */
   .hero{position:relative;min-height:94vh;display:flex;flex-direction:column;
     align-items:center;justify-content:flex-end;text-align:center;overflow:hidden}
-  /* 34% across keeps his face in frame once a tall phone screen crops the sides
-     off this near-square photo; 34% down keeps it clear of the title */
-  .hero .bg{position:absolute;inset:0;background:#0d1210 url('hero.jpg') 34% 34%/cover no-repeat;
+  /* Stacked frames that crossfade. Photographs overlap beautifully mid-fade, so
+     unlike the verses further down these genuinely dissolve into each other.
+     Each frame drifts from a slight scale back to 1 while it's up. */
+  .hero .bg{position:absolute;inset:0;background:#0d1210;overflow:hidden}
+  .hero .frame{position:absolute;inset:0;background-size:cover;background-repeat:no-repeat;
     filter:brightness(1.12) saturate(1.03);
-    transform:scale(1.05);animation:slowzoom 18s ease-out forwards}
-  @keyframes slowzoom{to{transform:scale(1)}}
+    opacity:0;transform:scale(1.07);
+    transition:opacity 2s ease,transform 10s linear}
+  .hero .frame.on{opacity:1;transform:scale(1)}
   .hero .scrim{position:absolute;inset:0;background:
     linear-gradient(180deg,rgba(8,11,10,.30) 0%,rgba(8,11,10,.04) 26%,
       rgba(8,11,10,.20) 54%,rgba(8,11,10,.60) 76%,rgba(8,11,10,.92) 90%,var(--bg) 100%)}
@@ -194,7 +197,7 @@
   .reveal.in{opacity:1;transform:none}
   @media (prefers-reduced-motion:reduce){
     .reveal{opacity:1;transform:none;transition:none}
-    .hero .bg{animation:none;transform:none}
+    .hero .frame{transition:none;transform:none}
     .hero .content{animation:none}
     .hero .content::after{animation:none;opacity:.8}
     .snd.off{animation:none}
@@ -223,7 +226,17 @@
 </header>
 
 <div class="hero">
-  <div class="bg"></div>
+  <div class="bg">
+    <!-- Only the first frame carries a real background-image. The others hold
+         theirs in data-src until the page has loaded, so four large photographs
+         aren't competing with the one that's actually on screen.
+         The percentages are per-photo: each keeps its subject in frame once a
+         tall phone screen crops the sides off a landscape shot. -->
+    <div class="frame on" style="background-image:url('hero1.jpg');background-position:50% 55%"></div>
+    <div class="frame" data-src="hero2.jpg" style="background-position:50% 42%"></div>
+    <div class="frame" data-src="hero3.jpg" style="background-position:30% 45%"></div>
+    <div class="frame" data-src="hero4.jpg" style="background-position:34% 34%"></div>
+  </div>
   <div class="scrim"></div>
   <div class="content">
     <p class="eyebrow">The Apostolic Church of Lafayette presents</p>
@@ -367,6 +380,32 @@
     entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
   }, {rootMargin:'0px 0px -12% 0px', threshold:0.15});
   document.querySelectorAll('.reveal').forEach(function(el){ io.observe(el); });
+
+  // Hero crossfade. A true dissolve here, both frames visible at once, because
+  // photographs blend well overlapping — the opposite of the verses below.
+  var frames = document.querySelectorAll('.hero .frame');
+  var stillHero = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (frames.length > 1 && !stillHero){
+    // hold the other three back so they don't compete with the frame that's
+    // actually on screen; whichever of these fires first wins
+    var lit = false;
+    function lightRest(){
+      if (lit) return;
+      lit = true;
+      for (var i = 1; i < frames.length; i++){
+        frames[i].style.backgroundImage = "url('" + frames[i].getAttribute('data-src') + "')";
+      }
+    }
+    window.addEventListener('load', lightRest);
+    setTimeout(lightRest, 2500);
+
+    var hi = 0;
+    setInterval(function(){
+      frames[hi].classList.remove('on');
+      hi = (hi + 1) % frames.length;
+      frames[hi].classList.add('on');
+    }, 8500);
+  }
 
   // EVERY DATE ON THE PAGE COMES FROM HERE (except the <meta> tags, which crawlers
   // read before any script runs). Edit these lines and the showtimes list and the
