@@ -241,6 +241,15 @@
   .prow button{flex:0 0 auto;border:1px solid rgba(224,138,138,.38);background:transparent;
     color:#e08a8a;font:500 12px var(--sans);padding:7px 13px;border-radius:999px;cursor:pointer;
     -webkit-tap-highlight-color:transparent}
+  /* the caught-you screen: a shake, then confetti over the whole panel */
+  @keyframes nope{
+    0%,100%{transform:translateX(0)}
+    18%{transform:translateX(-8px)} 36%{transform:translateX(8px)}
+    54%{transform:translateX(-5px)} 72%{transform:translateX(5px)} 86%{transform:translateX(-2px)}
+  }
+  .card.nope{animation:nope .5s ease}
+  /* absolute, or it would join the sheet's flex row and shove the card sideways */
+  .confetti{position:absolute;inset:0;pointer-events:none;z-index:2}
   .msg{font-size:13.5px;line-height:1.5;margin-top:14px;min-height:20px;color:var(--muted)}
   .msg.bad{color:#e08a8a}
   .msg.good{color:var(--gold-bright)}
@@ -714,7 +723,13 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
     });
   }
-  function closePanel(){ panel.hidden = true; panelBody.innerHTML = ''; pass = ''; }
+  function closePanel(){
+    panel.hidden = true;
+    panelBody.innerHTML = '';
+    pass = '';
+    // a burst still in flight would keep animating against a hidden panel
+    [].forEach.call(panel.querySelectorAll('.confetti'), function(n){ n.remove(); });
+  }
 
   function openPanel(){
     panel.hidden = false;
@@ -754,6 +769,13 @@
 
   function tryUnlock(){
     var v = document.getElementById('pPass').value;
+
+    // Someone is going to try the office number. Caught here rather than at the
+    // server, so it costs them nothing off the attempt limit — it's a joke, not
+    // a lockout. Safe to do in the page: it gives away nothing about the real
+    // password beyond the fact that it isn't this.
+    if (v.indexOf('777') >= 0) return niceTryView();
+
     var msg = document.getElementById('pMsg');
     msg.className = 'msg'; msg.textContent = 'Checking…';
     // The server is what actually decides — this call is the check, not a
@@ -771,6 +793,76 @@
       msg.className = 'msg bad';
       msg.textContent = e.message;
     });
+  }
+
+  // Hand-rolled rather than a library, because the page loads nothing from
+  // anywhere else and this is about forty lines.
+  function confetti(host){
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var c = document.createElement('canvas');
+    c.className = 'confetti';
+    host.appendChild(c);
+
+    var w = host.clientWidth, h = host.clientHeight;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    c.width = w * dpr; c.height = h * dpr;
+    c.style.width = w + 'px'; c.style.height = h + 'px';
+    var ctx = c.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    // the page's own gold, plus a little Christmas red and green
+    var COLORS = ['#e7b75c', '#f6d68a', '#efe9dd', '#b4483f', '#3f6b4f'];
+    var bits = [];
+    for (var i = 0; i < 110; i++){
+      bits.push({
+        x: w / 2 + (Math.random() - 0.5) * w * 0.45,
+        y: h * 0.42 + (Math.random() - 0.5) * 40,
+        vx: (Math.random() - 0.5) * 8,
+        vy: -5 - Math.random() * 8,
+        w: 5 + Math.random() * 5,
+        h: 8 + Math.random() * 7,
+        rot: Math.random() * Math.PI,
+        vr: (Math.random() - 0.5) * 0.32,
+        col: COLORS[(Math.random() * COLORS.length) | 0]
+      });
+    }
+
+    var LIFE = 2800, start = null;
+    (function frame(now){
+      if (start === null) start = now;
+      var t = now - start;
+      ctx.clearRect(0, 0, w, h);
+      for (var i = 0; i < bits.length; i++){
+        var b = bits[i];
+        b.vy += 0.24;      // gravity
+        b.vx *= 0.995;     // a little air
+        b.x += b.vx; b.y += b.vy; b.rot += b.vr;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, 1 - t / LIFE);
+        ctx.translate(b.x, b.y);
+        ctx.rotate(b.rot);
+        ctx.fillStyle = b.col;
+        ctx.fillRect(-b.w / 2, -b.h / 2, b.w, b.h);
+        ctx.restore();
+      }
+      if (t < LIFE) requestAnimationFrame(frame);
+      else c.remove();
+    })(performance.now());
+  }
+
+  function niceTryView(){
+    var card = panel.querySelector('.card');
+    panelBody.innerHTML =
+      '<h3>Nice try</h3>' +
+      '<p class="note">But no. <span aria-hidden="true">🙂</span></p>' +
+      '<button class="sendbtn" type="button" id="pBack">Let me try again</button>';
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+      card.classList.remove('nope');
+      void card.offsetWidth;   // forces a reflow so the shake replays on a repeat visit
+      card.classList.add('nope');
+    }
+    confetti(panel);
+    document.getElementById('pBack').addEventListener('click', lockedView);
   }
 
   function adminView(data){
