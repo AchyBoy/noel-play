@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#080b0a">
 <!-- Single source of truth for the build. Shown in the footer, and compared
      against a fresh copy of this page so a stale cache announces itself. -->
-<meta name="x-noel-version" content="v1.3">
+<meta name="x-noel-version" content="v1.4">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Noel">
 <meta property="og:description" content="The Apostolic Church of Lafayette presents an evening of sacred music and drama. December 19–20 · Lafayette, LA.">
@@ -723,18 +723,10 @@
   // has its own handler, so its click was never blocked.
   var WAKE = ['click', 'touchend', 'pointerup', 'touchstart', 'keydown'];
 
-  // TEMPORARY diagnostic. iOS gives no console, so the footer reports how many
-  // gestures actually reached this code and why the last play() was refused.
-  // Two unknowns, answered on screen. Remove once the music is settled.
+  // Kept for the diagnostics panel behind the password. These no longer touch
+  // the footer — once the music started working, that would have published
+  // "v1.3 · 1 tap · playing" to every visitor.
   var taps = 0, lastErr = '';
-  function audioNote(){
-    var el = document.getElementById('ver');
-    if (!el) return;
-    var bits = [];
-    if (taps) bits.push(taps + (taps === 1 ? ' tap' : ' taps'));
-    if (lastErr) bits.push(lastErr);
-    el.textContent = VERSION + (bits.length ? ' · ' + bits.join(' · ') : '');
-  }
   bed.volume = 0;
 
   function fadeTo(target, done){
@@ -775,7 +767,6 @@
       mark(true);
       fadeTo(VOL);
       lastErr = 'playing';
-      audioNote();
     }).catch(function(err){
       // Refused, almost always because that gesture didn't count as user
       // activation. Leave `wants` alone so the button still reads on, and keep
@@ -783,7 +774,6 @@
       // tapped by hand.
       sounding = false;
       lastErr = (err && (err.name || err.message)) || 'refused';
-      audioNote();
     });
   }
   function stop(){
@@ -806,7 +796,6 @@
     // start and immediately stop each other
     if (e && e.target && snd && (e.target === snd || snd.contains(e.target))) return;
     taps++;
-    audioNote();
     if (wants) start();
   }
 
@@ -1102,13 +1091,14 @@
     var queue = [].slice.call(files);
     if (!queue.length) return;
     var msg = document.getElementById('pMsg');
-    var total = queue.length, ok = 0, bad = 0, lastErr = '';
+    // `lastFail`, not `lastErr` — that name is the music diagnostics' at the top level
+    var total = queue.length, ok = 0, bad = 0, lastFail = '';
 
     (function next(){
       if (!queue.length){
         msg.className = bad ? 'msg bad' : 'msg good';
         msg.textContent = bad
-          ? ok + ' added, ' + bad + ' failed' + (lastErr ? ' (' + lastErr + ')' : '')
+          ? ok + ' added, ' + bad + ' failed' + (lastFail ? ' (' + lastFail + ')' : '')
           : ok + (ok === 1 ? ' photo added' : ' photos added');
         refreshPanel();
         return;
@@ -1125,7 +1115,7 @@
             ok++;
           });
         })
-        .catch(function(e){ bad++; lastErr = e.message || ''; })
+        .catch(function(e){ bad++; lastFail = e.message || ''; })
         .then(next);
     })();
   }
