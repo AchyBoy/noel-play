@@ -153,6 +153,11 @@
     border:1px solid var(--gold);color:var(--gold-bright);font-size:14px;font-weight:500;
     letter-spacing:.03em;padding:13px 28px;border-radius:999px;transition:background .3s ease}
   .mapbtn:active{background:rgba(231,183,92,.12)}
+  .mapbtn:focus-visible{outline:2px solid var(--gold-bright);outline-offset:3px}
+  button.mapbtn{cursor:pointer;background:transparent;font-family:var(--sans);
+    -webkit-tap-highlight-color:transparent}
+  .acts{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:30px}
+  .acts .mapbtn{margin-top:0}
 
   /* contact */
   .sub-lede{color:var(--muted);font-size:15.5px;max-width:34ch;margin:0 auto 30px}
@@ -191,6 +196,14 @@
     .snd.off{animation:none}
   }
 </style>
+<noscript><style>
+  /* without JS nothing ever gets the .in class, so the whole page would sit at
+     opacity 0. Show everything and skip the animation instead. */
+  .reveal{opacity:1;transform:none}
+  .verse{min-height:0}
+  .verse figure{position:static;opacity:1}
+  .verse figure + figure{margin-top:34px}
+</style></noscript>
 </head>
 <body>
 
@@ -258,9 +271,14 @@
 <section id="showtimes">
   <div class="wrap reveal">
     <p class="kicker">Showtimes</p>
-    <div class="show"><div class="day"><b>Saturday</b> &middot; December 19</div><div class="time">6:30 PM</div></div>
-    <div class="show"><div class="day"><b>Sunday</b> &middot; December 20</div><div class="time">5:00 PM</div></div>
-    <a class="mapbtn" href="noel.ics">Add to calendar</a>
+    <div id="showlist">
+      <div class="show"><div class="day"><b>Saturday</b> &middot; December 19</div><div class="time">6:30 PM</div></div>
+      <div class="show"><div class="day"><b>Sunday</b> &middot; December 20</div><div class="time">5:00 PM</div></div>
+    </div>
+    <div class="acts">
+      <a class="mapbtn" href="noel.ics">Add to calendar</a>
+      <button class="mapbtn" type="button" id="share">Invite someone</button>
+    </div>
   </div>
 </section>
 
@@ -343,23 +361,62 @@
   }, {rootMargin:'0px 0px -12% 0px', threshold:0.15});
   document.querySelectorAll('.reveal').forEach(function(el){ io.observe(el); });
 
-  // countdown to the final performance (PLACEHOLDER: Sun Dec 20, 2026, 5:00 PM Central)
-  var TARGET = new Date('2026-12-20T17:00:00-06:00').getTime();
+  // EVERY DATE ON THE PAGE COMES FROM HERE (except the <meta> tags, which crawlers
+  // read before any script runs). Edit these lines and the showtimes list and the
+  // countdown both follow. PLACEHOLDER dates until the real ones are confirmed.
+  var SHOWS = [
+    { day: 'Saturday', date: 'December 19', time: '6:30 PM', at: '2026-12-19T18:30:00-06:00' },
+    { day: 'Sunday',   date: 'December 20', time: '5:00 PM', at: '2026-12-20T17:00:00-06:00' }
+  ];
+  var RUNS_MIN = 90;  // roughly how long the play runs, so "curtain is up" is honest
+
+  document.getElementById('showlist').innerHTML = SHOWS.map(function(s){
+    return '<div class="show"><div class="day"><b>' + s.day + '</b> · ' + s.date +
+           '</div><div class="time">' + s.time + '</div></div>';
+  }).join('');
+
   var clock = document.getElementById('clock'), clabel = document.getElementById('clabel');
-  function pad(n){ return (n<10?'0':'')+n; }
+  function pad(n){ return (n < 10 ? '0' : '') + n; }
+  function state(big, small, dimClock){
+    clock.textContent = big; clabel.textContent = small;
+    clock.classList.toggle('done', !!dimClock);
+    clabel.classList.add('done');
+  }
   function tick(){
-    var diff = TARGET - Date.now();
-    if (diff <= 0){
-      clock.textContent='0:00:00'; clock.classList.add('done');
-      clabel.textContent='You missed it'; clabel.classList.add('done');
+    var now = Date.now(), next = null, onNow = null;
+    for (var i = 0; i < SHOWS.length; i++){
+      var t = new Date(SHOWS[i].at).getTime();
+      if (now < t){ next = { t: t, show: SHOWS[i] }; break; }
+      if (now < t + RUNS_MIN * 60000){ onNow = SHOWS[i]; break; }
+    }
+    if (onNow){ state('Now', 'the curtain is up', false); return; }
+    if (!next){ state('Thank you', 'for spending Christmas with us', false); return; }
+
+    var s = Math.floor((next.t - now) / 1000);
+    var d = Math.floor(s / 86400); s -= d * 86400;
+    var h = Math.floor(s / 3600);  s -= h * 3600;
+    var m = Math.floor(s / 60);    s -= m * 60;
+    clock.textContent = (d > 0 ? d + 'd ' : '') + h + ':' + pad(m) + ':' + pad(s);
+    clabel.textContent = 'until ' + next.show.day + '’s performance';
+    clock.classList.remove('done'); clabel.classList.remove('done');
+  }
+  tick(); setInterval(tick, 1000);
+
+  // invite someone — the share sheet on a phone, the clipboard everywhere else
+  var share = document.getElementById('share');
+  var SHARE_TEXT = 'Noel, a Christmas play at the Apostolic Church of Lafayette.';
+  share.addEventListener('click', function(){
+    var url = location.href.split('#')[0];
+    if (navigator.share){
+      navigator.share({ title: 'Noel', text: SHARE_TEXT, url: url }).catch(function(){});
       return;
     }
-    var s=Math.floor(diff/1000), d=Math.floor(s/86400); s-=d*86400;
-    var h=Math.floor(s/3600); s-=h*3600; var m=Math.floor(s/60); s-=m*60;
-    clock.textContent=(d>0?d+'d ':'')+h+':'+pad(m)+':'+pad(s);
-    clabel.textContent='until the curtain rises';
-  }
-  tick(); setInterval(tick,1000);
+    var was = share.textContent;
+    navigator.clipboard.writeText(SHARE_TEXT + ' ' + url).then(function(){
+      share.textContent = 'Link copied';
+      setTimeout(function(){ share.textContent = was; }, 2200);
+    }).catch(function(){ share.textContent = 'Copy this page’s address'; });
+  });
 
   // scripture crossfade
   // one verse clears before the next arrives — overlapping them ghosts the text
