@@ -145,14 +145,21 @@
   .credits .role{color:var(--muted);text-align:left}
   .credits .who{color:var(--cream);text-align:right}
 
-  /* Masonry via CSS columns rather than a grid: these are a mix of portrait and
-     landscape stage shots, and any fixed cell ratio would crop the heart out of
-     half of them. This shows each one whole, and takes however many get added. */
-  .gallery{columns:2;column-gap:12px}
-  .shot{break-inside:avoid;margin:0 0 12px;border-radius:12px;overflow:hidden;
-    border:1px solid var(--line);
+  /* A swipeable strip that also advances on its own. Cards stop at 78% so the
+     next one always peeks in from the right — that sliver is the only thing
+     telling people there's more to push. */
+  .gallery{display:flex;gap:12px;overflow-x:auto;overscroll-behavior-x:contain;
+    scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;
+    scrollbar-width:none;-ms-overflow-style:none}
+  .gallery::-webkit-scrollbar{display:none}
+  .shot{flex:0 0 min(78%,400px);scroll-snap-align:center;aspect-ratio:4/3;
+    border-radius:12px;overflow:hidden;border:1px solid var(--line);
     background:linear-gradient(160deg,rgba(231,183,92,.05),rgba(231,183,92,.01))}
-  .shot img{width:100%;height:auto;display:block}
+  .shot img{width:100%;height:100%;object-fit:cover;display:block}
+  .dots{display:flex;gap:7px;justify-content:center;margin-top:20px}
+  .dots i{width:6px;height:6px;border-radius:999px;background:rgba(231,183,92,.22);
+    transition:background .4s ease,transform .4s ease}
+  .dots i.on{background:var(--gold-bright);transform:scale(1.25)}
 
   .addr{font-family:var(--serif);font-size:26px;color:var(--cream);margin-bottom:6px}
   .city{color:var(--muted);font-size:15px}
@@ -178,6 +185,17 @@
   .field input::placeholder,.field textarea::placeholder{color:#6d6f68}
   .field input:focus,.field textarea:focus{border-color:var(--gold);background:rgba(231,183,92,.05)}
   .field textarea{min-height:124px;resize:vertical}
+  /* Safari and Chrome paint autofilled fields their own pale yellow, which over
+     this background came out olive. An inset shadow is the only way to cover it. */
+  .field input:-webkit-autofill,
+  .field input:-webkit-autofill:hover,
+  .field input:-webkit-autofill:focus{
+    -webkit-text-fill-color:var(--cream);
+    -webkit-box-shadow:0 0 0 1000px #121614 inset;
+    caret-color:var(--cream);
+    transition:background-color 9999s ease-out 0s}
+  /* honeypot: off-screen and untabbable, so only a bot ever fills it */
+  .hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none}
   .sendbtn{margin-top:6px;width:100%;cursor:pointer;
     border:1px solid var(--gold);background:transparent;color:var(--gold-bright);
     font:500 14px/1 var(--sans);letter-spacing:.03em;padding:16px 28px;border-radius:999px;
@@ -236,6 +254,7 @@
     <div class="frame" data-src="hero2.jpg" style="background-position:50% 42%"></div>
     <div class="frame" data-src="hero3.jpg" style="background-position:30% 45%"></div>
     <div class="frame" data-src="hero4.jpg" style="background-position:34% 34%"></div>
+    <div class="frame" data-src="hero5.jpg" style="background-position:55% 45%"></div>
   </div>
   <div class="scrim"></div>
   <div class="content">
@@ -316,12 +335,14 @@
   <div class="wrap reveal">
     <p class="kicker">On stage</p>
     <div class="gallery">
-      <!-- strongest frame leads; the tall one also balances the two columns -->
-      <div class="shot"><img src="g2.jpg" width="933" height="1400" alt="Two women holding one another beside the cross" loading="lazy" onerror="this.remove()"></div>
-      <div class="shot"><img src="g1.jpg" width="1400" height="1050" alt="Two men on stage beneath the Emmanuel banner" loading="lazy" onerror="this.remove()"></div>
-      <div class="shot"><img src="g3.jpg" width="1400" height="1050" alt="Mary kneeling as two trumpeters play" loading="lazy" onerror="this.remove()"></div>
-      <div class="shot"><img src="g4.jpg" width="1400" height="933" alt="Two women on stage, holding one another" loading="lazy" onerror="this.remove()"></div>
+      <!-- object-position is per photo: the cards are a uniform 4:3, so each
+           image needs its own idea of what must survive the crop -->
+      <div class="shot"><img src="g2.jpg" style="object-position:50% 55%" alt="Two women holding one another beside the cross" loading="lazy" onerror="this.remove()"></div>
+      <div class="shot"><img src="g1.jpg" alt="Two men on stage beneath the Emmanuel banner" loading="lazy" onerror="this.remove()"></div>
+      <div class="shot"><img src="g3.jpg" alt="Mary kneeling as two trumpeters play" loading="lazy" onerror="this.remove()"></div>
+      <div class="shot"><img src="g4.jpg" style="object-position:45% 50%" alt="Two women on stage, holding one another" loading="lazy" onerror="this.remove()"></div>
     </div>
+    <div class="dots" id="dots" aria-hidden="true"></div>
   </div>
 </section>
 
@@ -351,6 +372,7 @@
         <span>Message</span>
         <textarea id="cMsg" name="message" placeholder="How can we help?"></textarea>
       </label>
+      <input class="hp" type="text" id="cHp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
       <button class="sendbtn" type="submit" id="cSend">Send message</button>
     </form>
     <p class="orline">or email us directly<br><a href="mailto:andrew@fochelc.com">andrew@fochelc.com</a></p>
@@ -381,6 +403,25 @@
   }, {rootMargin:'0px 0px -12% 0px', threshold:0.15});
   document.querySelectorAll('.reveal').forEach(function(el){ io.observe(el); });
 
+  // Declared up here because the visitor ping below runs before the contact
+  // form's code; `var` would otherwise hoist it as undefined.
+  var API = 'https://api.jobhubgo.com/api/noel';
+
+  // Unique-visitor tally. The id is random, minted once, and kept in
+  // localStorage — it identifies a browser, not a person, and carries nothing
+  // about them. Fire and forget: counting must never affect the page.
+  try {
+    var vid = localStorage.getItem('noel-vid');
+    if (!vid){
+      vid = (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).slice(0, 24);
+      localStorage.setItem('noel-vid', vid);
+    }
+    fetch(API + '/visit', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ vid: vid }), keepalive: true
+    }).catch(function(){});
+  } catch (e) { /* storage blocked (private mode) — just don't count */ }
+
   // Hero crossfade. A true dissolve here, both frames visible at once, because
   // photographs blend well overlapping — the opposite of the verses below.
   var frames = document.querySelectorAll('.hero .frame');
@@ -405,6 +446,60 @@
       hi = (hi + 1) % frames.length;
       frames[hi].classList.add('on');
     }, 8500);
+  }
+
+  // Photo strip: swipeable, and it also walks itself along. A hand on it stops
+  // the walking until they've been off it a while, so it never yanks a photo
+  // away from someone in the middle of looking at it.
+  var strip = document.querySelector('.gallery');
+  var cards = strip ? [].slice.call(strip.querySelectorAll('.shot')) : [];
+  if (cards.length > 1){
+    var dots = document.getElementById('dots');
+    cards.forEach(function(){ dots.appendChild(document.createElement('i')); });
+    var pips = dots.querySelectorAll('i');
+    var at = 0, held = false, wake = null, settle = null;
+
+    function paint(){
+      for (var i = 0; i < pips.length; i++) pips[i].classList.toggle('on', i === at);
+    }
+    // measured off rects, not offsetLeft — the strip isn't the offset parent
+    function offsetOf(c){
+      return c.getBoundingClientRect().left - strip.getBoundingClientRect().left + strip.scrollLeft;
+    }
+    function nearest(){
+      var mid = strip.scrollLeft + strip.clientWidth / 2, best = 0, bd = Infinity;
+      cards.forEach(function(c, i){
+        var d = Math.abs(offsetOf(c) + c.offsetWidth / 2 - mid);
+        if (d < bd){ bd = d; best = i; }
+      });
+      return best;
+    }
+    function slideTo(i){
+      at = (i + cards.length) % cards.length;
+      strip.scrollTo({
+        left: offsetOf(cards[at]) - (strip.clientWidth - cards[at].offsetWidth) / 2,
+        behavior: 'smooth'
+      });
+      paint();
+    }
+
+    strip.addEventListener('scroll', function(){
+      clearTimeout(settle);
+      settle = setTimeout(function(){ at = nearest(); paint(); }, 90);
+    }, { passive: true });
+
+    ['pointerdown', 'touchstart', 'wheel'].forEach(function(ev){
+      strip.addEventListener(ev, function(){
+        held = true;
+        clearTimeout(wake);
+        wake = setTimeout(function(){ held = false; }, 7000);
+      }, { passive: true });
+    });
+
+    paint();
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+      setInterval(function(){ if (!held) slideTo(at + 1); }, 5000);
+    }
   }
 
   // EVERY DATE ON THE PAGE COMES FROM HERE (except the <meta> tags, which crawlers
@@ -548,11 +643,11 @@
     if (document.hidden){ bed.pause(); } else { bed.play().catch(function(){}); }
   });
 
-  // contact form.
-  // With ENDPOINT empty it needs no server at all: it hands the note to the visitor's
-  // own mail app, already filled in. Fill ENDPOINT in and it POSTs the note instead.
+  // Contact form. It posts the note to the JobHub backend, which mails it on via
+  // Mailgun, so nothing hands off to the visitor's mail app. Clearing ENDPOINT
+  // falls back to a prefilled mailto, which is the behaviour if the API is down.
   var TO = 'andrew@fochelc.com';
-  var ENDPOINT = '';
+  var ENDPOINT = API + '/contact';
   var form = document.getElementById('contactForm'), sendBtn = document.getElementById('cSend');
   function said(msg){ sendBtn.textContent = msg; }
   form.addEventListener('submit', function(e){
@@ -565,14 +660,25 @@
     if (ENDPOINT){
       said('Sending…'); sendBtn.disabled = true;
       fetch(ENDPOINT, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({name:name, from:from, message:msg})
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          name: name, from: from, message: msg,
+          website: document.getElementById('cHp').value
+        })
       }).then(function(r){
-        if (!r.ok) throw new Error('bad status');
-        form.reset(); said('Thank you — we’ll be in touch');
-      }).catch(function(){
-        sendBtn.disabled = false; said('Didn’t send — try email below');
-        setTimeout(function(){ said('Send message'); }, 3200);
+        // the server explains itself (rate limits, empty message), so show what
+        // it said rather than a generic failure
+        return r.json().catch(function(){ return {}; }).then(function(j){
+          if (!r.ok) throw new Error(j.error || 'Could not send');
+          form.reset();
+          sendBtn.disabled = false;
+          said('Thank you, we’ll be in touch');
+          setTimeout(function(){ said('Send message'); }, 4000);
+        });
+      }).catch(function(e){
+        sendBtn.disabled = false;
+        said(e.message || 'Could not send');
+        setTimeout(function(){ said('Send message'); }, 4000);
       });
       return;
     }
