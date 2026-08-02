@@ -651,7 +651,12 @@
   // first touch, scroll, or keypress is what actually begins playback.
   var bed = document.getElementById('bed'), snd = document.getElementById('snd');
   var VOL = 0.22, fade = null;
-  var WAKE = ['pointerdown', 'touchstart', 'keydown', 'scroll', 'wheel'];
+  // Scroll and wheel are deliberately NOT here. Browsers don't count scrolling
+  // as the user activation that unlocks audio, so waking on it spent the one
+  // attempt on a play() that was always going to be refused. Everything here is
+  // a genuine activation event, and the up/end variants are included because
+  // Safari in particular wants the end of a gesture, not the start.
+  var WAKE = ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'click', 'keydown'];
   bed.volume = 0;
 
   function fadeTo(target, done){
@@ -678,12 +683,26 @@
   // button muted something that had never played.
   var wants = sessionStorage.getItem('noel-muted') !== '1';
   var sounding = false;
+  var starting = false;
 
   function start(){
+    if (starting || sounding) return;   // don't stack play() calls per event
+    starting = true;
     bed.play().then(function(){
+      starting = false;
       if (!wants){ bed.pause(); return; }  // muted while play() was in flight
-      sounding = true; mark(true); fadeTo(VOL);
-    }).catch(function(){ wants = false; sounding = false; mark(false); });
+      sounding = true;
+      detach();          // sound is genuinely out, so stop waiting for a gesture
+      mark(true);
+      fadeTo(VOL);
+    }).catch(function(){
+      // Refused, almost always because that gesture didn't count as user
+      // activation. Leave `wants` alone so the button still reads on, and keep
+      // listening — giving up here is what left the page silent until it was
+      // tapped by hand.
+      starting = false;
+      sounding = false;
+    });
   }
   function stop(){
     sounding = false;
@@ -695,7 +714,6 @@
     // a tap on the button is its own listener's business; if both ran they'd
     // start and immediately stop each other
     if (e && e.target && (e.target === snd || snd.contains(e.target))) return;
-    detach();
     if (wants) start();
   }
 
@@ -705,8 +723,9 @@
   // toggles off what is actually playing, and otherwise turns it on — so the tap
   // always does the thing the visitor is asking for
   snd.addEventListener('click', function(){
-    detach();
     if (sounding){
+      // muting also stops the listeners, or the next touch would start it again
+      detach();
       wants = false; sessionStorage.setItem('noel-muted', '1'); mark(false); stop();
     } else {
       wants = true; sessionStorage.removeItem('noel-muted'); mark(true); start();
