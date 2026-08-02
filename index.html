@@ -205,8 +205,41 @@
   .orline a{color:var(--gold-bright);border-bottom:1px solid var(--line);
     padding-bottom:3px;overflow-wrap:anywhere}
 
+  /* Hidden photo panel, reached by long-pressing the footer wordmark.
+     The wordmark must not be selectable or iOS pops its own copy/lookup menu
+     over the top of the press. */
+  .sheet{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
+    padding:20px;background:rgba(4,6,5,.74);backdrop-filter:blur(6px)}
+  .sheet[hidden]{display:none}
+  .card{width:100%;max-width:440px;max-height:86vh;overflow-y:auto;position:relative;
+    background:#0d1211;border:1px solid var(--line);border-radius:16px;
+    padding:26px 22px 24px;text-align:left}
+  .card h3{font-family:var(--serif);font-size:25px;font-weight:600;color:var(--gold-bright);
+    margin-bottom:5px}
+  .card .note{font-size:14px;line-height:1.6;color:var(--muted);margin-bottom:20px}
+  .x{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:999px;
+    border:1px solid var(--line);background:transparent;color:var(--muted);
+    cursor:pointer;font-size:14px;line-height:1;-webkit-tap-highlight-color:transparent}
+  .stat{display:flex;gap:18px;margin-bottom:22px}
+  .stat > div{flex:1}
+  .stat b{display:block;font-family:var(--serif);font-size:29px;font-weight:600;
+    color:var(--gold-bright);font-variant-numeric:tabular-nums;line-height:1.2}
+  .stat span{font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+  .plist{display:flex;flex-direction:column;gap:9px;margin-top:16px}
+  .prow{display:flex;align-items:center;gap:11px}
+  .prow img{width:54px;height:41px;object-fit:cover;border-radius:7px;
+    border:1px solid var(--line);flex:0 0 54px}
+  .prow time{flex:1;font-size:12.5px;color:var(--muted)}
+  .prow button{flex:0 0 auto;border:1px solid rgba(224,138,138,.38);background:transparent;
+    color:#e08a8a;font:500 12px var(--sans);padding:7px 13px;border-radius:999px;cursor:pointer;
+    -webkit-tap-highlight-color:transparent}
+  .msg{font-size:13.5px;line-height:1.5;margin-top:14px;min-height:20px;color:var(--muted)}
+  .msg.bad{color:#e08a8a}
+  .msg.good{color:var(--gold-bright)}
+
   footer{text-align:center;padding:64px 26px 80px;border-top:1px solid var(--line)}
-  footer .ft{font-family:var(--serif);font-size:24px;color:var(--gold-bright);margin-bottom:8px}
+  footer .ft{font-family:var(--serif);font-size:24px;color:var(--gold-bright);margin-bottom:8px;
+    display:inline-block;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
   footer .sub{color:var(--muted);font-size:14px;letter-spacing:.02em}
 
   /* quiet reveal-on-scroll */
@@ -381,10 +414,17 @@
 
 <footer>
   <div class="reveal">
-    <div class="ft">Noel</div>
+    <div class="ft" id="ft">Noel</div>
     <div class="sub">The Apostolic Church of Lafayette &middot; December 19&ndash;20</div>
   </div>
 </footer>
+
+<div class="sheet" id="panel" hidden>
+  <div class="card">
+    <button class="x" id="panelClose" type="button" aria-label="Close">&#10005;</button>
+    <div id="panelBody"></div>
+  </div>
+</div>
 
 <audio id="bed" loop preload="none" playsinline>
   <source src="noel.m4a" type="audio/mp4">
@@ -406,6 +446,7 @@
   // Declared up here because the visitor ping below runs before the contact
   // form's code; `var` would otherwise hoist it as undefined.
   var API = 'https://api.jobhubgo.com/api/noel';
+  var TO = 'andrew@fochelc.com';
 
   // Unique-visitor tally. The id is random, minted once, and kept in
   // localStorage — it identifies a browser, not a person, and carries nothing
@@ -452,14 +493,22 @@
   // the walking until they've been off it a while, so it never yanks a photo
   // away from someone in the middle of looking at it.
   var strip = document.querySelector('.gallery');
-  var cards = strip ? [].slice.call(strip.querySelectorAll('.shot')) : [];
-  if (cards.length > 1){
-    var dots = document.getElementById('dots');
-    cards.forEach(function(){ dots.appendChild(document.createElement('i')); });
-    var pips = dots.querySelectorAll('i');
+  var dots = document.getElementById('dots');
+  if (strip){
+    var cards = [];
     var at = 0, held = false, wake = null, settle = null;
 
+    // Rebuilt rather than computed once, because photos uploaded from the page
+    // get appended to this strip after it has already been set up.
+    function refreshStrip(){
+      cards = [].slice.call(strip.querySelectorAll('.shot'));
+      dots.innerHTML = '';
+      cards.forEach(function(){ dots.appendChild(document.createElement('i')); });
+      if (at >= cards.length) at = 0;
+      paint();
+    }
     function paint(){
+      var pips = dots.children;
       for (var i = 0; i < pips.length; i++) pips[i].classList.toggle('on', i === at);
     }
     // measured off rects, not offsetLeft — the strip isn't the offset parent
@@ -475,6 +524,7 @@
       return best;
     }
     function slideTo(i){
+      if (!cards.length) return;
       at = (i + cards.length) % cards.length;
       strip.scrollTo({
         left: offsetOf(cards[at]) - (strip.clientWidth - cards[at].offsetWidth) / 2,
@@ -496,10 +546,32 @@
       }, { passive: true });
     });
 
-    paint();
+    refreshStrip();
     if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
-      setInterval(function(){ if (!held) slideTo(at + 1); }, 5000);
+      setInterval(function(){ if (!held && cards.length > 1) slideTo(at + 1); }, 5000);
     }
+
+    // Photos added from the page itself. Existing ones are cleared first so a
+    // reload can't stack duplicates onto the end of the strip.
+    window.loadNoelPhotos = function(){
+      return fetch(API + '/photos').then(function(r){ return r.json(); }).then(function(j){
+        [].forEach.call(strip.querySelectorAll('.shot[data-photo-id]'), function(n){ n.remove(); });
+        ((j && j.photos) || []).forEach(function(p){
+          var cell = document.createElement('div');
+          cell.className = 'shot';
+          cell.setAttribute('data-photo-id', p.id);
+          var img = document.createElement('img');
+          img.src = p.url;
+          img.loading = 'lazy';
+          img.alt = 'Photo from the performance';
+          img.onerror = function(){ cell.remove(); refreshStrip(); };
+          cell.appendChild(img);
+          strip.appendChild(cell);
+        });
+        refreshStrip();
+      }).catch(function(){});
+    };
+    window.loadNoelPhotos();
   }
 
   // EVERY DATE ON THE PAGE COMES FROM HERE (except the <meta> tags, which crawlers
@@ -637,6 +709,211 @@
     }
   });
 
+  // ---- hidden photo panel: long-press the footer wordmark -------------------
+  // The password is only ever held in this variable. It is never written to
+  // storage, so closing the tab forgets it.
+  var panel = document.getElementById('panel');
+  var panelBody = document.getElementById('panelBody');
+  var ftWord = document.getElementById('ft');
+  var pass = '';
+
+  function esc(s){
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+  function closePanel(){ panel.hidden = true; panelBody.innerHTML = ''; pass = ''; }
+
+  function openPanel(){
+    panel.hidden = false;
+    panelBody.innerHTML = '<h3>One moment</h3><p class="note">Checking…</p>';
+    fetch(API + '/status').then(function(r){ return r.json(); }).then(function(s){
+      if (s && s.uploadsOpen === false) shutView(s.contact);
+      else lockedView();
+    }).catch(function(){ lockedView(); });
+  }
+
+  // After the window closes this is all anyone gets, which is the whole point
+  // of asking the server rather than trusting a date in the page.
+  function shutView(contact){
+    var who = contact || TO;
+    panelBody.innerHTML =
+      '<h3>Uploads are closed</h3>' +
+      '<p class="note">The window for adding photos has passed. To have something ' +
+      'added or taken down, contact the administrator.</p>' +
+      '<a class="mapbtn" style="margin-top:0" href="mailto:' + esc(who) + '">' + esc(who) + '</a>';
+  }
+
+  function lockedView(){
+    panelBody.innerHTML =
+      '<h3>Add photos</h3>' +
+      '<p class="note">Photos you add here go onto the page straight away, into the ' +
+      'strip under On stage.</p>' +
+      '<label class="field"><span>Password</span>' +
+      '<input type="password" id="pPass" autocomplete="current-password"></label>' +
+      '<button class="sendbtn" type="button" id="pUnlock">Unlock</button>' +
+      '<p class="msg" id="pMsg"></p>';
+    document.getElementById('pUnlock').addEventListener('click', tryUnlock);
+    document.getElementById('pPass').addEventListener('keydown', function(e){
+      if (e.key === 'Enter') tryUnlock();
+    });
+    document.getElementById('pPass').focus();
+  }
+
+  function tryUnlock(){
+    var v = document.getElementById('pPass').value;
+    var msg = document.getElementById('pMsg');
+    msg.className = 'msg'; msg.textContent = 'Checking…';
+    // The server is what actually decides — this call is the check, not a
+    // client-side comparison against something shipped in the page.
+    fetch(API + '/admin', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ password: v })
+    }).then(function(r){
+      return r.json().catch(function(){ return {}; }).then(function(j){
+        if (!r.ok) throw new Error(j.error || 'Could not check that');
+        pass = v;
+        adminView(j);
+      });
+    }).catch(function(e){
+      msg.className = 'msg bad';
+      msg.textContent = e.message;
+    });
+  }
+
+  function adminView(data){
+    var v = data.visitors || {};
+    panelBody.innerHTML =
+      '<h3>Photos</h3>' +
+      '<p class="note">Anything added here shows on the page immediately.</p>' +
+      '<div class="stat">' +
+        '<div><b>' + (v.people || 0) + '</b><span>People</span></div>' +
+        '<div><b>' + (v.views || 0) + '</b><span>Visits</span></div>' +
+        '<div><b>' + (v.newThisWeek || 0) + '</b><span>New this week</span></div>' +
+      '</div>' +
+      '<input type="file" id="pFile" accept="image/*" multiple hidden>' +
+      '<button class="sendbtn" type="button" id="pPick">Choose photos</button>' +
+      '<p class="msg" id="pMsg"></p>' +
+      '<div class="plist" id="pList"></div>';
+    document.getElementById('pPick').addEventListener('click', function(){
+      document.getElementById('pFile').click();
+    });
+    document.getElementById('pFile').addEventListener('change', function(e){
+      sendFiles(e.target.files);
+      e.target.value = '';   // so picking the same file twice still fires
+    });
+    drawList(data.photos || []);
+  }
+
+  function drawList(photos){
+    var list = document.getElementById('pList');
+    if (!list) return;
+    if (!photos.length){
+      list.innerHTML = '<p class="note" style="margin:2px 0 0">Nothing uploaded yet.</p>';
+      return;
+    }
+    list.innerHTML = photos.map(function(p){
+      var d = new Date(p.createdAt);
+      var when = isNaN(d) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      return '<div class="prow" data-id="' + esc(p.id) + '">' +
+        '<img src="' + esc(p.url) + '" alt="">' +
+        '<time>' + esc(when) + '</time>' +
+        '<button type="button">Remove</button></div>';
+    }).join('');
+    [].forEach.call(list.querySelectorAll('.prow button'), function(b){
+      b.addEventListener('click', function(){
+        removePhoto(b.parentNode.getAttribute('data-id'), b);
+      });
+    });
+  }
+
+  // One at a time rather than all at once: a handful of phone photos in parallel
+  // over patchy signal is how you get half of them failing.
+  function sendFiles(files){
+    var queue = [].slice.call(files);
+    if (!queue.length) return;
+    var msg = document.getElementById('pMsg');
+    var total = queue.length, ok = 0, bad = 0, lastErr = '';
+
+    (function next(){
+      if (!queue.length){
+        msg.className = bad ? 'msg bad' : 'msg good';
+        msg.textContent = bad
+          ? ok + ' added, ' + bad + ' failed' + (lastErr ? ' (' + lastErr + ')' : '')
+          : ok + (ok === 1 ? ' photo added' : ' photos added');
+        refreshPanel();
+        return;
+      }
+      msg.className = 'msg';
+      msg.textContent = 'Uploading ' + (ok + bad + 1) + ' of ' + total + '…';
+      var fd = new FormData();
+      fd.append('password', pass);
+      fd.append('file', queue.shift());
+      fetch(API + '/photos', { method: 'POST', body: fd })
+        .then(function(r){
+          return r.json().catch(function(){ return {}; }).then(function(j){
+            if (!r.ok) throw new Error(j.error || 'failed');
+            ok++;
+          });
+        })
+        .catch(function(e){ bad++; lastErr = e.message || ''; })
+        .then(next);
+    })();
+  }
+
+  function removePhoto(id, btn){
+    btn.disabled = true;
+    btn.textContent = 'Removing…';
+    fetch(API + '/photos/' + encodeURIComponent(id), {
+      method: 'DELETE', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ password: pass })
+    }).then(function(r){
+      if (!r.ok) throw new Error('failed');
+      refreshPanel();
+    }).catch(function(){
+      btn.disabled = false;
+      btn.textContent = 'Remove';
+    });
+  }
+
+  // Re-reads both the panel list and the strip on the page, so a change is
+  // visible in both places without a reload.
+  function refreshPanel(){
+    fetch(API + '/admin', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ password: pass })
+    }).then(function(r){ return r.json(); })
+      .then(function(j){ if (j && j.photos) drawList(j.photos); })
+      .catch(function(){});
+    if (window.loadNoelPhotos) window.loadNoelPhotos();
+  }
+
+  // 600ms hold opens it while the finger is still down, and the release that
+  // follows is swallowed so it doesn't read as a stray tap.
+  var holdT = null, popped = false;
+  function startHold(){
+    popped = false;
+    clearTimeout(holdT);
+    holdT = setTimeout(function(){ popped = true; openPanel(); }, 600);
+  }
+  function endHold(){ clearTimeout(holdT); }
+  if (ftWord){
+    ftWord.addEventListener('touchstart', startHold, { passive: true });
+    ftWord.addEventListener('touchend', endHold);
+    ftWord.addEventListener('touchmove', endHold, { passive: true });
+    ftWord.addEventListener('mousedown', startHold);
+    ftWord.addEventListener('mouseup', endHold);
+    ftWord.addEventListener('mouseleave', endHold);
+    ftWord.addEventListener('click', function(e){
+      if (popped){ e.preventDefault(); e.stopPropagation(); }
+    });
+  }
+  document.getElementById('panelClose').addEventListener('click', closePanel);
+  panel.addEventListener('click', function(e){ if (e.target === panel) closePanel(); });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && !panel.hidden) closePanel();
+  });
+
   // duck out when the tab goes to the background
   document.addEventListener('visibilitychange', function(){
     if (!wants) return;
@@ -646,7 +923,6 @@
   // Contact form. It posts the note to the JobHub backend, which mails it on via
   // Mailgun, so nothing hands off to the visitor's mail app. Clearing ENDPOINT
   // falls back to a prefilled mailto, which is the behaviour if the API is down.
-  var TO = 'andrew@fochelc.com';
   var ENDPOINT = API + '/contact';
   var form = document.getElementById('contactForm'), sendBtn = document.getElementById('cSend');
   function said(msg){ sendBtn.textContent = msg; }
