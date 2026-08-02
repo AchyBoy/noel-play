@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#080b0a">
 <!-- Single source of truth for the build. Shown in the footer, and compared
      against a fresh copy of this page so a stale cache announces itself. -->
-<meta name="x-noel-version" content="v1.0">
+<meta name="x-noel-version" content="v1.1">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Noel">
 <meta property="og:description" content="The Apostolic Church of Lafayette presents an evening of sacred music and drama. December 19–20 · Lafayette, LA.">
@@ -706,12 +706,13 @@
   // first touch, scroll, or keypress is what actually begins playback.
   var bed = document.getElementById('bed'), snd = document.getElementById('snd');
   var VOL = 0.22, fade = null;
-  // Scroll and wheel are deliberately NOT here. Browsers don't count scrolling
-  // as the user activation that unlocks audio, so waking on it spent the one
-  // attempt on a play() that was always going to be refused. Everything here is
-  // a genuine activation event, and the up/end variants are included because
-  // Safari in particular wants the end of a gesture, not the start.
-  var WAKE = ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'click', 'keydown'];
+  // ONLY end-of-gesture events. WebKit grants the permission to start audio on
+  // click / touchend / pointerup, not on pointerdown or touchstart. Listening to
+  // the early ones was actively harmful: pointerdown fired first, failed, and
+  // left a pending play() that blocked the click a moment later — which is why
+  // tapping the page did nothing while tapping the ♪ button worked. The button
+  // has its own handler, so its click was never blocked.
+  var WAKE = ['click', 'touchend', 'pointerup', 'keydown'];
   bed.volume = 0;
 
   function fadeTo(target, done){
@@ -738,13 +739,14 @@
   // button muted something that had never played.
   var wants = sessionStorage.getItem('noel-muted') !== '1';
   var sounding = false;
-  var starting = false;
 
   function start(){
-    if (starting || sounding) return;   // don't stack play() calls per event
-    starting = true;
+    // Guarded ONLY on what is actually true right now. An in-flight attempt is
+    // deliberately not blocked: a play() left pending from an earlier event in
+    // the same tap would swallow the one event the browser was going to honour.
+    // Calling play() on an already-playing element is harmless.
+    if (sounding) return;
     bed.play().then(function(){
-      starting = false;
       if (!wants){ bed.pause(); return; }  // muted while play() was in flight
       sounding = true;
       detach();          // sound is genuinely out, so stop waiting for a gesture
@@ -755,7 +757,6 @@
       // activation. Leave `wants` alone so the button still reads on, and keep
       // listening — giving up here is what left the page silent until it was
       // tapped by hand.
-      starting = false;
       sounding = false;
     });
   }
@@ -781,7 +782,7 @@
   // feels exactly like tapping and nothing happening. Deferred to `load` so it
   // never competes with the hero photo for bandwidth.
   window.addEventListener('load', function(){
-    if (sounding || starting) return;
+    if (sounding) return;
     try { bed.preload = 'auto'; bed.load(); } catch (e) {}
   });
 
