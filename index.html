@@ -37,7 +37,7 @@
 <meta name="theme-color" content="#080b0a">
 <!-- Single source of truth for the build. Shown in the footer, and compared
      against a fresh copy of this page so a stale cache announces itself. -->
-<meta name="x-noel-version" content="v1.9">
+<meta name="x-noel-version" content="v1.10">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Noel">
 <meta property="og:description" content="The Apostolic Church of Lafayette presents an evening of sacred music and drama. December 19–20 · Lafayette, LA.">
@@ -812,7 +812,7 @@
        AND a separate idle timer, and the two could land together and leave two
        verses on the screen at once, reading as ghosted text. */
     var FLY = 5200, STEP = 70, READ = 2400, FADE = 1150, HOLD = 7000;
-    var t = null, idle = null, here = false, calm = false, flying = false;
+    var t = null, idle = null, here = false, calm = false, flying = false, ended = 0;
 
     function show(n){
       // cleared off every figure first, so two can never be `in` together
@@ -824,25 +824,47 @@
 
     /* Still and looking at it, and this verse gets sent over his head. Moving,
        and it just changes quietly the way it always did. */
+    /* ⚠️ The guard comes BEFORE the clearTimeout, and that order is the whole
+       bug fixed in v1.10. With the clear first, any plan() during a flight
+       killed the flight's own completion timer and then returned, leaving the
+       verse stranded: words finished at opacity 0, `fly` still on, nothing
+       ever scheduled again. It only took one touch of the screen mid flight,
+       because stir() re-plans a second after he stops moving. */
     function plan(){
-      clearTimeout(t);
       if (flying || !here || figs.length < 2) return;
+      clearTimeout(t);
       t = setTimeout(calm ? fly : fade, calm ? READ : HOLD);
     }
+    /* The one way a flight ends, and safe to call twice. Three separate things
+       call it, because a verse stuck invisible is the worst failure this page
+       has and a phone will happily lose a timer: the timer itself, the last
+       word's animationend, and coming back to a page that was hidden mid
+       flight (iOS suspends both timers and animations when it goes away). */
+    function land(){
+      if (!flying) return;
+      flying = false;
+      clearTimeout(t); t = null;
+      box.classList.remove('fly');
+      show(after());
+      plan();
+    }
     function fly(){
-      flying = true;
+      flying = true; ended = 0;
       box.classList.add('fly');
       var words = figs[i].querySelectorAll('span').length;
       /* A flight is NOT interrupted if he starts moving part way through. The
          words are already on their way at him and snatching them back reads
          worse than letting them land. Only the next one waits on him. */
-      t = setTimeout(function(){
-        flying = false;
-        box.classList.remove('fly');
-        show(after());
-        plan();
-      }, FLY + words * STEP + 150);
+      t = setTimeout(land, FLY + words * STEP + 150);
     }
+    // counted rather than asked, so it needs no getAnimations()
+    box.addEventListener('animationend', function(ev){
+      if (!flying || ev.animationName !== 'comeoff') return;
+      if (++ended >= figs[i].querySelectorAll('blockquote span').length) land();
+    });
+    document.addEventListener('visibilitychange', function(){
+      if (!document.hidden && flying) land();
+    });
     function fade(){
       figs[i].classList.remove('in');
       t = setTimeout(function(){ show(after()); plan(); }, FADE);
