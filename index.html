@@ -2,13 +2,42 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<!-- ==================================================================
+     HOW THIS PAGE IS EDITED AND SHIPPED. Read before touching anything.
+
+     Edit    JobHub/_local/noel.html          <- the source
+     Copy to ~/Development/noel-play/index.html
+     Bump x-noel-version below on EVERY deploy, or a stale phone and a
+     real bug look identical.
+
+     ⚠️ TWO SEPARATE SITES. A GIT PUSH DOES NOT UPDATE THE CHURCH'S ONE.
+       1. The github.io copy, from the noel-play repo:
+            git add index.html && git commit && git push
+       2. noel.lafayetteac.org, which is what the church actually sees,
+          is a CLOUDFLARE PAGES project named "noel" (noel-dfe.pages.dev
+          is only its subdomain, not its name). It is NOT connected to
+          git, so the push above leaves it on the old version. Ship it:
+
+            cd ~/Development/noel-play
+            npx --yes wrangler@4 pages deploy . --project-name=noel --commit-dirty=true
+
+     Wrangler auth is an OAuth token that refreshes itself, living in
+     ~/Library/Preferences/.wrangler/  — NOT in ~/.wrangler, and Spotlight
+     cannot see it because it is a dot-directory. wrangler is not installed
+     globally, npx fetches it. There has never been a wrangler.toml here
+     and none is needed.
+
+     Then check BOTH, because they are separate sites:
+       curl -s https://noel.lafayetteac.org/     | grep -o 'content="v[0-9.]*"'
+       curl -s https://achyboy.github.io/noel-play/ | grep -o 'content="v[0-9.]*"'
+     ================================================================== -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Noel — The Apostolic Church of Lafayette</title>
 <meta name="description" content="The Apostolic Church of Lafayette presents Noel. December 19–20 · Lafayette, LA.">
 <meta name="theme-color" content="#080b0a">
 <!-- Single source of truth for the build. Shown in the footer, and compared
      against a fresh copy of this page so a stale cache announces itself. -->
-<meta name="x-noel-version" content="v1.7">
+<meta name="x-noel-version" content="v1.8">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Noel">
 <meta property="og:description" content="The Apostolic Church of Lafayette presents an evening of sacred music and drama. December 19–20 · Lafayette, LA.">
