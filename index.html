@@ -37,7 +37,7 @@
 <meta name="theme-color" content="#080b0a">
 <!-- Single source of truth for the build. Shown in the footer, and compared
      against a fresh copy of this page so a stale cache announces itself. -->
-<meta name="x-noel-version" content="v1.10">
+<meta name="x-noel-version" content="v1.12">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Noel">
 <meta property="og:description" content="The Apostolic Church of Lafayette presents an evening of sacred music and drama. December 19–20 · Lafayette, LA.">
@@ -166,6 +166,14 @@
     align-items:center;justify-content:center;gap:20px;
     opacity:0;transition:opacity 1.1s ease}
   .verse figure.in{opacity:1}
+  /* ⚠️ A verse that has flown away must NOT come back, and it will try to.
+     Dropping the `fly` class removes the animation, and the words revert that
+     instant to their base style, which is fully visible in the ORIGINAL place.
+     The outgoing verse flashed back onto the page and then fell away over the
+     1.1s figure fade while the next one faded in over the top of it. `gone`
+     takes it out with no transition at all, so there is nothing to see.
+     Placed after `.in` deliberately: same specificity, later rule wins. */
+  .verse figure.gone{opacity:0;transition:none}
   .verse blockquote{font-family:var(--serif);font-style:italic;font-size:clamp(21px,5.4vw,27px);
     line-height:1.55;color:#e6dcc8;max-width:30ch;
     text-shadow:0 0 26px rgba(231,183,92,.10)}
@@ -818,6 +826,12 @@
       // cleared off every figure first, so two can never be `in` together
       [].forEach.call(figs, function(f){ f.classList.remove('in'); });
       i = n;
+      /* ⚠️ `gone` comes off HERE, when this verse is due back on the page, and
+         never on a timer. It is the only thing keeping a verse that has flown
+         away from fading back in, so it has to outlast the handover. Dropping
+         it after 80ms looked fine and was not: a phone clamps a short timer,
+         and the verse reappeared whole for a beat before the next one. */
+      figs[i].classList.remove('gone');
       figs[i].classList.add('in');
     }
     function after(){ return (i + 1) % figs.length; }
@@ -844,6 +858,10 @@
       if (!flying) return;
       flying = false;
       clearTimeout(t); t = null;
+      /* Hidden outright BEFORE the animation comes off, or it reappears whole
+         for the length of a 1.1s fade. It has already flown away; as far as
+         the eye is concerned it is gone and must stay gone. */
+      figs[i].classList.add('gone');
       box.classList.remove('fly');
       show(after());
       plan();
