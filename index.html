@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#080b0a">
 <!-- Single source of truth for the build. Shown in the footer, and compared
      against a fresh copy of this page so a stale cache announces itself. -->
-<meta name="x-noel-version" content="v1.6">
+<meta name="x-noel-version" content="v1.7">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Noel">
 <meta property="og:description" content="The Apostolic Church of Lafayette presents an evening of sacred music and drama. December 19–20 · Lafayette, LA.">
@@ -140,7 +140,25 @@
   .verse blockquote{font-family:var(--serif);font-style:italic;font-size:clamp(21px,5.4vw,27px);
     line-height:1.55;color:#e6dcc8;max-width:30ch;
     text-shadow:0 0 26px rgba(231,183,92,.10)}
-  .verse figcaption{font-size:11.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--gold)}
+  .verse figcaption{font-size:11.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--gold);
+    transition:opacity 1.2s ease}
+  /* The words lift off the page once he stops moving.
+     ⚠️ The perspective sits on the blockquote, NOT on .verse. A figure part way
+     through the crossfade has an opacity under 1, and that flattens any 3D its
+     children are doing, so the lift would die for a second on every change.
+     Words are inline-block because a transform does nothing to a plain inline
+     box; the spaces between them are left as text nodes so the line still
+     wraps exactly where it did before. */
+  .verse blockquote{perspective:640px}
+  .verse blockquote span{display:inline-block;
+    transition:transform 1.5s cubic-bezier(.22,.61,.36,1), text-shadow 1.5s ease, color 1.5s ease}
+  .verse.lift figure.in blockquote span{
+    transform:translateZ(var(--z,40px)) translateY(-4px);
+    color:#f5ecd9;
+    text-shadow:0 0 20px rgba(231,183,92,.42), 0 12px 28px rgba(0,0,0,.55)}
+  /* the reference falls back as the words come forward, which is most of what
+     sells the depth */
+  .verse.lift figure.in figcaption{opacity:.5}
 
   .credits{list-style:none;max-width:430px;margin:0 auto}
   .credits li{display:flex;justify-content:space-between;gap:18px;padding:14px 0;font-size:16px}
@@ -289,6 +307,7 @@
     .hero .content{animation:none}
     .hero .content::after{animation:none;opacity:.8}
     .snd.off{animation:none}
+    .verse blockquote span{transition:none}
   }
 </style>
 <noscript><style>
@@ -352,7 +371,7 @@
 
 <section class="word" id="word">
   <div class="wrap reveal">
-    <p class="kicker">The Word</p>
+    <p class="kicker">Watch the Word come to life</p>
     <div class="verse" id="verse">
       <figure class="in">
         <blockquote>&ldquo;Behold, I bring you good tidings of great joy, which shall be to all people.&rdquo;</blockquote>
@@ -365,6 +384,10 @@
       <figure>
         <blockquote>&ldquo;And the Word was made flesh, and dwelt among us.&rdquo;</blockquote>
         <figcaption>John 1:14</figcaption>
+      </figure>
+      <figure>
+        <blockquote>&ldquo;For in him dwelleth all the fulness of the Godhead bodily.&rdquo;</blockquote>
+        <figcaption>Colossians 2:9</figcaption>
       </figure>
       <figure>
         <blockquote>&ldquo;They shall call his name Emmanuel, which being interpreted is, God with us.&rdquo;</blockquote>
@@ -697,16 +720,75 @@
     }).catch(function(){ share.textContent = 'Copy this page’s address'; });
   });
 
-  // scripture crossfade
-  // one verse clears before the next arrives — overlapping them ghosts the text
-  var verses = document.querySelectorAll('#verse figure'), vi = 0;
-  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches && verses.length > 1){
-    setInterval(function(){
-      verses[vi].classList.remove('in');
-      vi = (vi + 1) % verses.length;
-      setTimeout(function(){ verses[vi].classList.add('in'); }, 1150);
-    }, 7000);
-  }
+  /* Scripture crossfade, and the words lifting off the page when he holds still.
+     ⚠️ This whole block is an IIFE and leaks NOTHING. The rest of the page is one
+     flat script scope, which is exactly where the `wake` bug came from, and
+     `settle` — the obvious name for the going-still handler — is already taken by
+     the photo strip's scroll timer further up. Check before adding a name here. */
+  (function(){
+    var box = document.getElementById('verse');
+    if (!box) return;
+    var figs = box.querySelectorAll('figure'), i = 0;
+    var slow = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Every word gets its own box so it can come forward on its own.
+    [].forEach.call(box.querySelectorAll('blockquote'), function(q){
+      var parts = q.textContent.split(/(\s+)/), k = 0;
+      q.textContent = '';
+      parts.forEach(function(part){
+        if (!part) return;
+        if (/^\s+$/.test(part)){ q.appendChild(document.createTextNode(part)); return; }
+        var w = document.createElement('span');
+        w.textContent = part;
+        /* How far forward, and when. Varied per word so it reads as paper
+           lifting rather than one flat sheet sliding at the screen. The words
+           out at the edges swing wider on their own: the perspective origin is
+           the middle of the quote, so coming forward carries them outward. */
+        w.style.setProperty('--z', (26 + (k * 37 % 5) * 11) + 'px');
+        w.style.transitionDelay = (k * 70) + 'ms';
+        q.appendChild(w);
+        k++;
+      });
+    });
+
+    if (slow) return;
+
+    /* He has to be looking at it AND holding still. Scrolling past does not
+       count, and neither does a hand moving over the page. */
+    var still = null, here = false;
+    function dropLift(){ box.classList.remove('lift'); }
+    function armLift(ms){
+      clearTimeout(still);
+      still = setTimeout(function(){ if (here) box.classList.add('lift'); }, ms);
+    }
+    function stir(){ dropLift(); armLift(1000); }
+
+    if (window.IntersectionObserver){
+      new IntersectionObserver(function(seen){
+        here = seen[0].isIntersecting;
+        if (here) armLift(1000); else { clearTimeout(still); dropLift(); }
+      }, { threshold: 0.45 }).observe(box);
+    } else {
+      here = true; armLift(1000);
+    }
+    /* Passive, and nothing in here ever calls preventDefault: these events are
+       also what the music is waiting on to be allowed to start. */
+    ['scroll', 'wheel', 'pointermove', 'touchstart', 'keydown'].forEach(function(ev){
+      window.addEventListener(ev, stir, { passive: true });
+    });
+
+    // one verse clears before the next arrives — overlapping them ghosts the text
+    if (figs.length > 1){
+      setInterval(function(){
+        // Back to the page for the change, or the next verse fades in already
+        // floating and is never seen to lift.
+        dropLift();
+        figs[i].classList.remove('in');
+        i = (i + 1) % figs.length;
+        setTimeout(function(){ figs[i].classList.add('in'); armLift(700); }, 1150);
+      }, 7000);
+    }
+  })();
 
   // Soft music bed, on by default. No browser will make sound before the visitor
   // has interacted with the page, so the button reads as on from the start and the
