@@ -37,7 +37,7 @@
 <meta name="theme-color" content="#080b0a">
 <!-- Single source of truth for the build. Shown in the footer, and compared
      against a fresh copy of this page so a stale cache announces itself. -->
-<meta name="x-noel-version" content="v1.8">
+<meta name="x-noel-version" content="v1.9">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Noel">
 <meta property="og:description" content="The Apostolic Church of Lafayette presents an evening of sacred music and drama. December 19–20 · Lafayette, LA.">
@@ -171,23 +171,48 @@
     text-shadow:0 0 26px rgba(231,183,92,.10)}
   .verse figcaption{font-size:11.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--gold);
     transition:opacity 1.2s ease}
-  /* The words lift off the page once he stops moving.
+  /* The words come off the page and KEEP coming. They lift, then accelerate
+     toward you, growing as they get near, and pass out over the screen.
      ⚠️ The perspective sits on the blockquote, NOT on .verse. A figure part way
-     through the crossfade has an opacity under 1, and that flattens any 3D its
-     children are doing, so the lift would die for a second on every change.
+     through a fade has an opacity under 1, and that flattens any 3D its children
+     are doing, so the flight would die for a second on every change of verse.
      Words are inline-block because a transform does nothing to a plain inline
-     box; the spaces between them are left as text nodes so the line still
-     wraps exactly where it did before. */
+     box; the spaces between them are left as text nodes so the line still wraps
+     exactly where it did before.
+     The ones off to the side leave past the edges rather than all piling out
+     through the middle, and that is free: perspective-origin is the centre of
+     the quote, so coming forward carries a word outward from it. */
   .verse blockquote{perspective:640px}
-  .verse blockquote span{display:inline-block;
-    transition:transform 1.5s cubic-bezier(.22,.61,.36,1), text-shadow 1.5s ease, color 1.5s ease}
-  .verse.lift figure.in blockquote span{
-    transform:translateZ(var(--z,40px)) translateY(-4px);
+  .verse blockquote span{display:inline-block}
+  /* ⚠️ The pacing is in the KEYFRAME POSITIONS, and the timing function is
+     linear on purpose. A cubic-bezier ease-in here is a trap twice over: CSS
+     applies the easing between EACH PAIR of keyframes rather than across the
+     whole run, and an ease-in over this much distance left the words crawling
+     at 1.45x for three and a half seconds and then exploding 2x -> 16x in the
+     last second, by which point they had already faded out. Measured, not
+     guessed. Scale is 640/(640-z), so the z numbers below are 1.9x, 3.6x, 8x
+     and 20x, and the opacity is held up until it is genuinely large and going
+     past the edges. Every keyframe carries the SAME function list, or the
+     browser falls back to matrix interpolation between them. */
+  @keyframes comeoff{
+    0%   {transform:translateZ(0) translateY(0);opacity:1}
+    10%  {transform:translateZ(var(--z,40px)) translateY(-4px);opacity:1}
+    45%  {transform:translateZ(300px) translateY(-8px);opacity:1}
+    75%  {transform:translateZ(460px) translateY(-12px);opacity:1}
+    92%  {transform:translateZ(560px) translateY(-15px);opacity:.85}
+    100% {transform:translateZ(608px) translateY(-18px);opacity:0}
+  }
+  /* ⚠️ translateZ must stay under the 640px perspective: at 640 the scale is
+     infinite. Raise .verse blockquote{perspective} before raising these. */
+  .verse.fly figure.in blockquote span{
     color:#f5ecd9;
-    text-shadow:0 0 20px rgba(231,183,92,.42), 0 12px 28px rgba(0,0,0,.55)}
-  /* the reference falls back as the words come forward, which is most of what
-     sells the depth */
-  .verse.lift figure.in figcaption{opacity:.5}
+    text-shadow:0 0 20px rgba(231,183,92,.42), 0 12px 28px rgba(0,0,0,.55);
+    animation:comeoff var(--fly,5200ms) linear both;
+    animation-delay:var(--d,0ms)}
+  /* on the way over it passes ABOVE the top bar and the vignette (z 30 and 40),
+     rather than sliding underneath them */
+  .verse.fly{position:relative;z-index:45}
+  .verse.fly figure.in figcaption{opacity:.35}
 
   .credits{list-style:none;max-width:430px;margin:0 auto}
   .credits li{display:flex;justify-content:space-between;gap:18px;padding:14px 0;font-size:16px}
@@ -336,7 +361,7 @@
     .hero .content{animation:none}
     .hero .content::after{animation:none;opacity:.8}
     .snd.off{animation:none}
-    .verse blockquote span{transition:none}
+    .verse.fly figure.in blockquote span{animation:none}
   }
 </style>
 <noscript><style>
@@ -774,7 +799,7 @@
            out at the edges swing wider on their own: the perspective origin is
            the middle of the quote, so coming forward carries them outward. */
         w.style.setProperty('--z', (26 + (k * 37 % 5) * 11) + 'px');
-        w.style.transitionDelay = (k * 70) + 'ms';
+        w.style.setProperty('--d', (k * 70) + 'ms');
         q.appendChild(w);
         k++;
       });
@@ -782,41 +807,74 @@
 
     if (slow) return;
 
-    /* He has to be looking at it AND holding still. Scrolling past does not
-       count, and neither does a hand moving over the page. */
-    var still = null, here = false;
-    function dropLift(){ box.classList.remove('lift'); }
-    function armLift(ms){
-      clearTimeout(still);
-      still = setTimeout(function(){ if (here) box.classList.add('lift'); }, ms);
+    /* ⚠️ ONE timer runs the whole cycle, and every change of verse goes through
+       show(). The first build had a free running setInterval for the crossfade
+       AND a separate idle timer, and the two could land together and leave two
+       verses on the screen at once, reading as ghosted text. */
+    var FLY = 5200, STEP = 70, READ = 2400, FADE = 1150, HOLD = 7000;
+    var t = null, idle = null, here = false, calm = false, flying = false;
+
+    function show(n){
+      // cleared off every figure first, so two can never be `in` together
+      [].forEach.call(figs, function(f){ f.classList.remove('in'); });
+      i = n;
+      figs[i].classList.add('in');
     }
-    function stir(){ dropLift(); armLift(1000); }
+    function after(){ return (i + 1) % figs.length; }
+
+    /* Still and looking at it, and this verse gets sent over his head. Moving,
+       and it just changes quietly the way it always did. */
+    function plan(){
+      clearTimeout(t);
+      if (flying || !here || figs.length < 2) return;
+      t = setTimeout(calm ? fly : fade, calm ? READ : HOLD);
+    }
+    function fly(){
+      flying = true;
+      box.classList.add('fly');
+      var words = figs[i].querySelectorAll('span').length;
+      /* A flight is NOT interrupted if he starts moving part way through. The
+         words are already on their way at him and snatching them back reads
+         worse than letting them land. Only the next one waits on him. */
+      t = setTimeout(function(){
+        flying = false;
+        box.classList.remove('fly');
+        show(after());
+        plan();
+      }, FLY + words * STEP + 150);
+    }
+    function fade(){
+      figs[i].classList.remove('in');
+      t = setTimeout(function(){ show(after()); plan(); }, FADE);
+    }
+
+    function stir(){
+      calm = false;
+      clearTimeout(idle);
+      idle = setTimeout(function(){ calm = true; plan(); }, 1000);
+    }
 
     if (window.IntersectionObserver){
       new IntersectionObserver(function(seen){
         here = seen[0].isIntersecting;
-        if (here) armLift(1000); else { clearTimeout(still); dropLift(); }
+        if (here) { plan(); }
+        else {
+          // scrolled away mid flight: put it back on the page rather than
+          // leaving a half flown verse to be found on the way back
+          clearTimeout(t);
+          flying = false;
+          box.classList.remove('fly');
+        }
       }, { threshold: 0.45 }).observe(box);
     } else {
-      here = true; armLift(1000);
+      here = true;
     }
     /* Passive, and nothing in here ever calls preventDefault: these events are
        also what the music is waiting on to be allowed to start. */
     ['scroll', 'wheel', 'pointermove', 'touchstart', 'keydown'].forEach(function(ev){
       window.addEventListener(ev, stir, { passive: true });
     });
-
-    // one verse clears before the next arrives — overlapping them ghosts the text
-    if (figs.length > 1){
-      setInterval(function(){
-        // Back to the page for the change, or the next verse fades in already
-        // floating and is never seen to lift.
-        dropLift();
-        figs[i].classList.remove('in');
-        i = (i + 1) % figs.length;
-        setTimeout(function(){ figs[i].classList.add('in'); armLift(700); }, 1150);
-      }, 7000);
-    }
+    stir();
   })();
 
   // Soft music bed, on by default. No browser will make sound before the visitor
