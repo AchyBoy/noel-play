@@ -37,7 +37,7 @@
 <meta name="theme-color" content="#080b0a">
 <!-- Single source of truth for the build. Shown in the footer, and compared
      against a fresh copy of this page so a stale cache announces itself. -->
-<meta name="x-noel-version" content="v1.16">
+<meta name="x-noel-version" content="v1.17">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Noel">
 <meta property="og:description" content="The Apostolic Church of Lafayette presents an evening of sacred music and drama. December 4–6 · Lafayette, LA.">
@@ -135,6 +135,50 @@
   .scrolldown .line{width:1px;height:34px;background:linear-gradient(var(--gold),transparent);
     animation:pulse 2.4s ease-in-out infinite}
   @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+
+
+  /* the invitation card (first screen) */
+  .hero.inv{justify-content:center;padding:78px 0 4vh}
+  .invite{position:relative;z-index:2;width:min(88vw,410px);padding:28px 24px 24px;
+    background:linear-gradient(170deg,#fbf5e8 0%,#f1e6cf 100%);color:#2b2217;border-radius:4px;
+    box-shadow:0 22px 60px rgba(0,0,0,.6),0 2px 6px rgba(0,0,0,.35);
+    animation:rise 1.1s cubic-bezier(.22,.61,.36,1) both}
+  .invite::before,.invite::after{content:"";position:absolute;pointer-events:none;border-radius:2px}
+  .invite::before{inset:8px;border:1.5px solid #b98a3a}
+  .invite::after{inset:12px;border:.5px solid rgba(185,138,58,.7)}
+  .inv-k{font-family:var(--sans);font-size:11.5px;font-weight:500;letter-spacing:.34em;text-transform:uppercase;color:#9a6c1f}
+  .inv-p{font-family:var(--serif);font-style:italic;font-size:16px;color:#5a4a36;margin-top:12px}
+  .invite h1{font-family:var(--serif);font-weight:600;font-size:clamp(64px,19vw,88px);line-height:.95;
+    letter-spacing:.02em;color:#1e170f;margin-top:4px;text-shadow:none}
+  .inv-by{font-family:var(--serif);font-style:italic;font-size:16px;color:#5a4a36;margin-top:6px}
+  .orn{display:flex;align-items:center;justify-content:center;gap:10px;color:#b98a3a;font-size:12px;margin:16px 0}
+  .orn i{display:block;width:54px;height:1px;background:linear-gradient(90deg,transparent,#b98a3a)}
+  .orn i:last-child{background:linear-gradient(90deg,#b98a3a,transparent)}
+  .inv-times p{font-family:var(--serif);font-size:19px;line-height:1.55;color:#2b2217}
+  .inv-times b{font-weight:600}
+  .inv-times span{color:#8a5f17;font-weight:600}
+  .inv-addr{font-family:var(--serif);font-size:17px;color:#2b2217}
+  .inv-free{font-family:var(--serif);font-style:italic;font-size:15.5px;color:#6b5840;margin-top:4px}
+  .inv-acts{display:flex;gap:10px;justify-content:center;margin-top:18px;position:relative;z-index:1}
+  .inv-btn{font-family:var(--sans);font-size:13.5px;font-weight:500;padding:11px 16px;border-radius:999px;
+    background:#2b2217;color:#f6ecd6;border:1px solid #2b2217}
+  .inv-btn.ghost{background:transparent;color:#2b2217}
+  .inv-btn:active{opacity:.75}
+  .hero.inv .scrolldown{position:relative;z-index:2;margin-top:22px}
+  .inv-x{position:absolute;top:14px;right:14px;z-index:3;width:34px;height:34px;border-radius:50%;
+    border:1px solid rgba(185,138,58,.6);background:rgba(255,255,255,.55);color:#5a4a36;
+    font-size:22px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0 0 2px}
+  .inv-x:active{background:rgba(185,138,58,.2)}
+  .hero .classic{display:none}
+  .hero.closed .invite{display:none}
+  .hero.closed .classic{display:block;padding-bottom:0}
+  .hero.closed{justify-content:flex-end;padding-bottom:10vh}
+  .ttl{font-family:var(--serif);font-weight:600;font-size:clamp(72px,26vw,132px);
+    line-height:.9;letter-spacing:.02em;color:#fff;
+    text-shadow:0 0 3px rgba(0,0,0,.7),0 2px 4px rgba(0,0,0,.8),0 0 28px rgba(0,0,0,.5)}
+  .inv-open{margin-top:26px;font-family:var(--sans);font-size:13.5px;font-weight:500;letter-spacing:.04em;
+    padding:11px 20px;border-radius:999px;cursor:pointer;
+    background:#f6ecd6;color:#2b2217;border:1px solid #b98a3a;box-shadow:0 6px 20px rgba(0,0,0,.45)}
 
   /* sections */
   section{padding:64px 0;text-align:center;position:relative}
@@ -394,7 +438,7 @@
   </div>
 </header>
 
-<div class="hero">
+<div class="hero inv">
   <div class="bg">
     <!-- Only the first frame carries a real background-image. The others hold
          theirs in data-src until the page has loaded, so four large photographs
@@ -408,12 +452,36 @@
     <div class="frame" data-src="hero5.jpg" style="background-position:55% 45%"></div>
   </div>
   <div class="scrim"></div>
-  <div class="content">
-    <p class="eyebrow">The Apostolic Church of Lafayette presents</p>
+  <!-- The first screen is an invitation card sitting over the photos. Its showtimes
+       are rebuilt from SHOWS further down, so dates still live in one place. -->
+  <div class="invite" role="group" aria-label="Invitation">
+    <button class="inv-x" type="button" id="invX" aria-label="Close the invitation">&times;</button>
+    <p class="inv-k">You&rsquo;re invited</p>
+    <p class="inv-p">The Apostolic Church of Lafayette presents</p>
     <h1>Noel</h1>
-    <p class="byline">written by Drake Simon</p>
-    <a class="scrolldown" href="#count"><span class="line"></span>Scroll</a>
+    <p class="inv-by">a Christmas play written by Drake Simon</p>
+    <div class="orn" aria-hidden="true"><i></i>&#10022;<i></i></div>
+    <div class="inv-times" id="inviteTimes">
+      <p><b>Friday</b>, December 4 <span>&middot; 6:30 PM</span></p>
+      <p><b>Saturday</b>, December 5 <span>&middot; 6:30 PM</span></p>
+      <p><b>Sunday</b>, December 6 <span>&middot; 5:00 PM</span></p>
+    </div>
+    <div class="orn" aria-hidden="true"><i></i>&#10022;<i></i></div>
+    <p class="inv-addr">302 Town Center Pkwy &middot; Lafayette, LA</p>
+    <p class="inv-free">Admission is free &middot; All are welcome</p>
+    <div class="inv-acts">
+      <a class="inv-btn" href="noel.ics">Add to calendar</a>
+      <a class="inv-btn ghost" href="https://maps.google.com/?q=302+Town+Center+Pkwy,+Lafayette,+LA+70503" target="_blank" rel="noopener">Directions</a>
+    </div>
   </div>
+  <!-- what the first screen shows once the card is closed: the photos and the title -->
+  <div class="content classic">
+    <p class="eyebrow">The Apostolic Church of Lafayette presents</p>
+    <p class="ttl">Noel</p>
+    <p class="byline">written by Drake Simon</p>
+    <button class="inv-open" type="button" id="invOpen">&#9993; Invitation</button>
+  </div>
+  <a class="scrolldown" href="#count"><span class="line"></span>More</a>
 </div>
 
 <section class="count" id="count">
@@ -739,6 +807,15 @@
   document.getElementById('showlist').innerHTML = SHOWS.map(function(s){
     return '<div class="show"><div class="day"><b>' + s.day + '</b> · ' + s.date +
            '</div><div class="time">' + s.time + '</div></div>';
+  }).join('');
+  // close / reopen the invitation card on the first screen
+  (function(){
+    var hero = document.querySelector('.hero');
+    document.getElementById('invX').addEventListener('click', function(){ hero.classList.add('closed'); });
+    document.getElementById('invOpen').addEventListener('click', function(){ hero.classList.remove('closed'); });
+  })();
+  document.getElementById('inviteTimes').innerHTML = SHOWS.map(function(s){
+    return '<p><b>' + s.day + '</b>, ' + s.date + ' <span>· ' + s.time + '</span></p>';
   }).join('');
 
   var clock = document.getElementById('clock'), clabel = document.getElementById('clabel');
