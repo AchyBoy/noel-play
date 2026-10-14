@@ -37,7 +37,7 @@
 <meta name="theme-color" content="#080b0a">
 <!-- Single source of truth for the build. Shown in the footer, and compared
      against a fresh copy of this page so a stale cache announces itself. -->
-<meta name="x-noel-version" content="v1.14">
+<meta name="x-noel-version" content="v1.15">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Noel">
 <meta property="og:description" content="The Apostolic Church of Lafayette presents an evening of sacred music and drama. December 4–6 · Lafayette, LA.">
@@ -165,6 +165,20 @@
   .inv-btn.ghost{background:transparent;color:#2b2217}
   .inv-btn:active{opacity:.75}
   .hero.inv .scrolldown{position:relative;z-index:2;margin-top:22px}
+  .inv-x{position:absolute;top:14px;right:14px;z-index:3;width:34px;height:34px;border-radius:50%;
+    border:1px solid rgba(185,138,58,.6);background:rgba(255,255,255,.55);color:#5a4a36;
+    font-size:22px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0 0 2px}
+  .inv-x:active{background:rgba(185,138,58,.2)}
+  .hero .classic{display:none}
+  .hero.closed .invite{display:none}
+  .hero.closed .classic{display:block;padding-bottom:0}
+  .hero.closed{justify-content:flex-end;padding-bottom:10vh}
+  .ttl{font-family:var(--serif);font-weight:600;font-size:clamp(72px,26vw,132px);
+    line-height:.9;letter-spacing:.02em;color:#fff;
+    text-shadow:0 0 3px rgba(0,0,0,.7),0 2px 4px rgba(0,0,0,.8),0 0 28px rgba(0,0,0,.5)}
+  .inv-open{margin-top:26px;font-family:var(--sans);font-size:13.5px;font-weight:500;letter-spacing:.04em;
+    padding:11px 20px;border-radius:999px;cursor:pointer;
+    background:#f6ecd6;color:#2b2217;border:1px solid #b98a3a;box-shadow:0 6px 20px rgba(0,0,0,.45)}
 
   /* sections */
   section{padding:64px 0;text-align:center;position:relative}
@@ -441,6 +455,7 @@
   <!-- The first screen is an invitation card sitting over the photos. Its showtimes
        are rebuilt from SHOWS further down, so dates still live in one place. -->
   <div class="invite" role="group" aria-label="Invitation">
+    <button class="inv-x" type="button" id="invX" aria-label="Close the invitation">&times;</button>
     <p class="inv-k">You&rsquo;re invited</p>
     <p class="inv-p">The Apostolic Church of Lafayette presents</p>
     <h1>Noel</h1>
@@ -458,6 +473,13 @@
       <a class="inv-btn" href="noel.ics">Add to calendar</a>
       <a class="inv-btn ghost" href="https://maps.google.com/?q=302+Town+Center+Pkwy,+Lafayette,+LA+70503" target="_blank" rel="noopener">Directions</a>
     </div>
+  </div>
+  <!-- what the first screen shows once the card is closed: the photos and the title -->
+  <div class="content classic">
+    <p class="eyebrow">The Apostolic Church of Lafayette presents</p>
+    <p class="ttl">Noel</p>
+    <p class="byline">written by Drake Simon</p>
+    <button class="inv-open" type="button" id="invOpen">&#9993; Invitation</button>
   </div>
   <a class="scrolldown" href="#count"><span class="line"></span>More</a>
 </div>
@@ -786,6 +808,12 @@
     return '<div class="show"><div class="day"><b>' + s.day + '</b> · ' + s.date +
            '</div><div class="time">' + s.time + '</div></div>';
   }).join('');
+  // close / reopen the invitation card on the first screen
+  (function(){
+    var hero = document.querySelector('.hero');
+    document.getElementById('invX').addEventListener('click', function(){ hero.classList.add('closed'); });
+    document.getElementById('invOpen').addEventListener('click', function(){ hero.classList.remove('closed'); });
+  })();
   document.getElementById('inviteTimes').innerHTML = SHOWS.map(function(s){
     return '<p><b>' + s.day + '</b>, ' + s.date + ' <span>· ' + s.time + '</span></p>';
   }).join('');
